@@ -7,6 +7,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .join("../..")
         .canonicalize()?;
     let mut manifest = CoreBuildManifest::new("siglus_rs", "rust-cdylib")?;
+    if manifest.target.ends_with("-apple-darwin") {
+        println!("cargo:rustc-cdylib-link-arg=-Wl,-install_name,@rpath/libshinki_emu_siglus_rs.dylib");
+    }
     for path in [
         "LICENSE-MPL-2.0",
         "shinki/THIRD_PARTY_NOTICES.md",
