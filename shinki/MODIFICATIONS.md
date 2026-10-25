@@ -40,6 +40,8 @@ cargo build --manifest-path shinki/shinki-emu-siglus_rs/Cargo.toml --locked --re
 
 From the ShinkiEMU root, use `cargo xtask build --target x86_64-pc-windows-msvc --core siglus_rs --release`. The adapter's `build.rs` writes `OUT_DIR/core-build.json` with the target, profile, ABI and fork-relative license inputs, including the unchanged nested Kira licenses. License changes trigger regeneration; xtask reads the manifest and cdylib location from Cargo messages.
 
+Apple builds use the same `rlib` for static iOS registration through `query`, and `cdylib` with `--features dynamic` for the macOS `.dylib`. CPAL uses CoreAudio system frameworks; the native Rust movie decoders and Kira license assets remain unchanged.
+
 The MPEG/WMV decoders are statically linked; the DLL needs the Windows system libraries, a GPU driver and the VC runtime. Adapter tests cover key mapping, native unmapped-key dispatch, committed text limits, unknown-input rejection, stateless extension rejection, the native error cause chain and typed configuration. GPU-gated tests (`--include-ignored`) run generated public scenes: `crates/siglus_scene_vm/tests/host_exit.rs` drives `SiglusHost` through OWARI, END_GAME without warning, and an accepted or declined warning; the adapter's `session_tests.rs` opens a real ABI session, waits for `SESSION_FINISHED` after OWARI or a host-confirmed END_GAME warning, checks that the state stays finished, control is refused and global data was saved, and that close releases the core for a second session in the same process. Product acceptance is still manual in a Release host.
 
 ## Native resource language selection
