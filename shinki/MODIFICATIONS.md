@@ -3,6 +3,7 @@
 ## Sources
 
 - Upstream `xmoezzz/siglus_rs` `5f358ef1360b0439e92aed2b749e8f25d8721954` (1.0.0).
+- Stable release `1.0.0` still resolves to that upstream commit and is already an ancestor of `shinki`; no duplicate merge is needed. The adapter explicitly requires Rust 1.98 with edition 2024.
 - Native baseline `13b55b47484faf8dfe03deb6ffd56ca0ec4ba3f2` originated on the `2018wzh/siglus_rs` fork: the native lifecycle and empty proc-stack fixes below, with the commercial hardware acceptance driver removed. The current fork is `Project-Shinkirou/siglus_rs`, branch `shinki`.
 - Kira 0.9.6 stays the complete nested submodule `vendor/kira`: upstream `dfb08d08d065930e9b257203bf11c6d34742f542`, fix `a299b42690094a71885f6ed97dc504c4038da9a7` originally from `2018wzh/kira`. Its existing CPAL 0.15.3 WASAPI teardown pin `65ac8a6ac1a635cc26bfc5af331295b052044908` is unchanged.
 - `shinki/shinki-emu-siglus_rs` depends on `shinki-emu-abi` (C ABI v3) and host-side `shinki-emu-build` from `Project-Shinkirou/ShinkiEMU@cb8d9dd22d7d0ab129085b324c94d6dc81fa19e3`. License texts and notices are in `shinki/THIRD_PARTY_NOTICES.md`.
