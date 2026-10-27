@@ -175,7 +175,7 @@ pub(super) unsafe extern "C" fn probe(
     })
 }
 pub(super) fn screen_size(root: &Path, language: resource::ResourceLanguage) -> Result<(u32, u32)> {
-    let config = resource::load_selected_gameexe(root, language, true)
+    let config = resource::load_selected_gameexe(root, language, false)
         .map_err(Failure::native)?
         .config;
     let Some(entry) = config.get_entry("SCREEN_SIZE") else {
@@ -251,7 +251,6 @@ mod tests {
             resource::ResourceLanguage::Chs
         );
     }
-
 
     #[test]
     fn invalid_language_type_choice_or_duplicate_is_rejected() {
