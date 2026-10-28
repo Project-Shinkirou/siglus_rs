@@ -550,22 +550,24 @@ impl AssetTables {
         cfg: GameexeConfig,
         report: Option<GameexeDecodeReport>,
     ) -> Self {
-        let mut out = Self::default();
-        out.gameexe_report = report;
-        out.button_se_templates = load_button_se_templates(&cfg);
-        out.button_action_templates = load_button_action_templates(&cfg);
-        out.se_file_names = load_se_file_names(&cfg);
-        out.mwnd_render = load_mwnd_render_template(&cfg);
-        out.mwnd_templates = load_mwnd_templates(&cfg);
-        out.emoji_templates = load_emoji_templates(&cfg);
-        out.message_button_templates = load_message_button_templates(&cfg);
-        out.waku_templates = load_waku_templates(&cfg, Some(&text));
-        out.icon_templates = load_icon_templates(&cfg);
-        out.sel_btn_templates = load_sel_btn_templates(&cfg);
-        out.namae_entries = load_namae_entries(Some(&text));
-        out.color_table = load_color_table(&cfg);
-        out.font_defaults = load_font_config_defaults(&cfg);
-        out.shake_templates = load_shake_templates(&cfg);
+        let mut out = Self {
+            gameexe_report: report,
+            button_se_templates: load_button_se_templates(&cfg),
+            button_action_templates: load_button_action_templates(&cfg),
+            se_file_names: load_se_file_names(&cfg),
+            mwnd_render: load_mwnd_render_template(&cfg),
+            mwnd_templates: load_mwnd_templates(&cfg),
+            emoji_templates: load_emoji_templates(&cfg),
+            message_button_templates: load_message_button_templates(&cfg),
+            waku_templates: load_waku_templates(&cfg, Some(&text)),
+            icon_templates: load_icon_templates(&cfg),
+            sel_btn_templates: load_sel_btn_templates(&cfg),
+            namae_entries: load_namae_entries(Some(&text)),
+            color_table: load_color_table(&cfg),
+            font_defaults: load_font_config_defaults(&cfg),
+            shake_templates: load_shake_templates(&cfg),
+            ..Self::default()
+        };
         out.gameexe = Some(cfg);
 
         // Drive table loading from the parsed config.
