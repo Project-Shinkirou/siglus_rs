@@ -343,7 +343,7 @@ pub fn dispatch(ctx: &mut CommandContext, form_id: u32, args: &[Value]) -> Resul
             return Ok(true);
         }
         CHECK_FILE_EXIST_SAVE_DIR => {
-            let save_dir = syscom::save_dir(&ctx.save_base_dir);
+            let save_dir = syscom::save_dir(&ctx.project_dir);
             let path = join_game_path(&save_dir, p_str(call.params, 0));
             ctx.push(Value::Int(if crate::resource::game_path_exists(&path) {
                 1

@@ -970,18 +970,24 @@ impl ResourceLanguage {
     ) -> Result<siglus_assets::scene_pck::ScenePckDecodeOptions> {
         match self {
             Self::Original => load_scene_pck_decode_options(project_dir),
-            // Never recover against another language pair or persist into its input tree.
-            Self::Chs => siglus_assets::scene_pck::ScenePckDecodeOptions::from_project_dir(project_dir),
+            // Never recover against another language pair; use key.toml as is.
+            Self::Chs => {
+                siglus_assets::scene_pck::ScenePckDecodeOptions::from_project_dir(project_dir)
+            }
         }
     }
 }
 
 fn chs_pair_paths(project_dir: &Path, append_dir: &str) -> Result<(PathBuf, PathBuf)> {
     let base = base_in_append(project_dir, append_dir, "");
-    let scene = resolve_windows_case_insensitive_file(&base.join("Scene.chs"))?
-        .ok_or_else(|| anyhow::anyhow!("CHS resource pair requires Scene.chs in the active append"))?;
-    let gameexe = resolve_windows_case_insensitive_file(&base.join("Gameexe.chs"))?
-        .ok_or_else(|| anyhow::anyhow!("CHS resource pair requires Gameexe.chs in the active append"))?;
+    let scene =
+        resolve_windows_case_insensitive_file(&base.join("Scene.chs"))?.ok_or_else(|| {
+            anyhow::anyhow!("CHS resource pair requires Scene.chs in the active append")
+        })?;
+    let gameexe =
+        resolve_windows_case_insensitive_file(&base.join("Gameexe.chs"))?.ok_or_else(|| {
+            anyhow::anyhow!("CHS resource pair requires Gameexe.chs in the active append")
+        })?;
     Ok((scene, gameexe))
 }
 
@@ -992,19 +998,24 @@ pub struct SelectedGameexe {
 }
 
 /// Read the selected configuration with the existing native container decoder.
+/// The original pair uses upstream key resolution (recovery and `key.toml`).
 pub fn load_selected_gameexe(
     project_dir: &Path,
     language: ResourceLanguage,
-    read_only_inputs: bool,
 ) -> Result<SelectedGameexe> {
     let path = language.initial_gameexe_path(project_dir)?;
     let raw = read_file_bytes(&path)?;
-    let (text, report) = if path.extension().and_then(|ext| ext.to_str()).is_some_and(|ext| ext.eq_ignore_ascii_case("ini")) {
+    let (text, report) = if path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("ini"))
+    {
         (String::from_utf8(raw)?, None)
     } else {
         let options = match language {
-            ResourceLanguage::Original if !read_only_inputs => load_gameexe_decode_options(project_dir)?,
-            _ => {
+            ResourceLanguage::Original => load_gameexe_decode_options(project_dir)?,
+            // Never recover against another language pair.
+            ResourceLanguage::Chs => {
                 siglus_assets::gameexe::GameexeDecodeOptions::from_project_dir(project_dir)?
             }
         };
@@ -1015,12 +1026,19 @@ pub fn load_selected_gameexe(
     if language == ResourceLanguage::Chs && config.entries.is_empty() {
         bail!("selected CHS Gameexe has no configuration entries");
     }
-    Ok(SelectedGameexe { text, config, report })
+    Ok(SelectedGameexe {
+        text,
+        config,
+        report,
+    })
 }
 
 fn localized_image_path(path: PathBuf, language: ResourceLanguage) -> Result<PathBuf> {
     if language == ResourceLanguage::Chs
-        && path.extension().and_then(|ext| ext.to_str()).is_some_and(|ext| ext.eq_ignore_ascii_case("g00"))
+        && path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("g00"))
         && let Some(localized) = resolve_windows_case_insensitive_file(&path.with_extension("g01"))?
     {
         return Ok(localized);
@@ -1031,7 +1049,10 @@ fn localized_image_path(path: PathBuf, language: ResourceLanguage) -> Result<Pat
 fn localized_movie_path(path: PathBuf, language: ResourceLanguage) -> Result<PathBuf> {
     if language == ResourceLanguage::Chs
         && let Some(parent) = path.parent()
-        && parent.file_name().and_then(|name| name.to_str()).is_some_and(|name| name.eq_ignore_ascii_case("mov"))
+        && parent
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.eq_ignore_ascii_case("mov"))
         && let (Some(base), Some(name)) = (parent.parent(), path.file_name())
         && let Some(localized) =
             resolve_windows_case_insensitive_file(&base.join("mov_chs").join(name))?
@@ -1701,7 +1722,8 @@ fn find_in_subdir(
     let (stem, explicit_ext) = split_name_ext(name);
     if language == ResourceLanguage::Chs
         && explicit_ext.is_none_or(|ext| ext.eq_ignore_ascii_case("g00"))
-        && let Some(path) = resolve_windows_case_insensitive_file(&base.join(format!("{stem}.g01")))?
+        && let Some(path) =
+            resolve_windows_case_insensitive_file(&base.join(format!("{stem}.g01")))?
     {
         return Ok((path, PctType::G00));
     }

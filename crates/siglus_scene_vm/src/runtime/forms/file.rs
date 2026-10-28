@@ -5,24 +5,16 @@ use std::path::{Path, PathBuf};
 use crate::runtime::forms::prop_access;
 use crate::runtime::{CommandContext, Value, constants};
 
-fn resolve_text_file_path(project_dir: &Path, append_dir: &str, save_base: &Path, raw: &str) -> Option<PathBuf> {
-    let normalized = raw.replace('\\', "/");
-    let raw_path = Path::new(&normalized);
+fn resolve_text_file_path(project_dir: &Path, append_dir: &str, raw: &str) -> Option<PathBuf> {
+    let raw_path = Path::new(raw);
     let mut candidates = Vec::new();
     if raw_path.is_absolute() {
         candidates.push(raw_path.to_path_buf());
     } else {
-        if save_base != project_dir {
-            candidates.push(save_base.join(raw_path));
-            candidates.push(save_base.join("save").join(raw_path));
-            candidates.push(save_base.join("savedata").join(raw_path));
-        }
         candidates.push(project_dir.join(raw_path));
         candidates.push(project_dir.join("dat").join(raw_path));
-        if save_base == project_dir {
-            candidates.push(project_dir.join("save").join(raw_path));
-            candidates.push(project_dir.join("savedata").join(raw_path));
-        }
+        candidates.push(project_dir.join("save").join(raw_path));
+        candidates.push(project_dir.join("savedata").join(raw_path));
         if !append_dir.is_empty() {
             let append = Path::new(append_dir);
             if append.is_absolute() {
@@ -42,8 +34,7 @@ fn resolve_text_file_path(project_dir: &Path, append_dir: &str, save_base: &Path
     }
     expanded
         .into_iter()
-        .filter_map(|p| crate::resource::resolve_game_file(&p).ok().flatten())
-        .find(|p| !crate::original_save::excludes_original_save_input(project_dir, save_base, p))
+        .find_map(|p| crate::resource::resolve_game_file(&p).ok().flatten())
 }
 
 fn decode_text(bytes: &[u8]) -> String {
@@ -94,7 +85,7 @@ fn handle_load_txt(ctx: &mut CommandContext, params: &[Value]) -> Result<bool> {
         ctx.push(Value::Int(0));
         return Ok(true);
     }
-    let Some(path) = resolve_text_file_path(&ctx.project_dir, &ctx.globals.append_dir, &ctx.save_base_dir, file_name)
+    let Some(path) = resolve_text_file_path(&ctx.project_dir, &ctx.globals.append_dir, file_name)
     else {
         ctx.unknown
             .record_note(&format!("FILE.LOAD_TXT missing file:{file_name}"));

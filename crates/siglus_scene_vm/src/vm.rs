@@ -1997,7 +1997,9 @@ impl<'a> SceneVm<'a> {
         self.scene_name_resolve_cache.clear();
         self.user_cmd_resolve_cache.clear();
 
-        let scene_pck_path = self.ctx.resource_language()
+        let scene_pck_path = self
+            .ctx
+            .resource_language()
             .scene_path_for_append(&self.ctx.project_dir, &active_append)?;
 
         #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
@@ -2028,7 +2030,10 @@ impl<'a> SceneVm<'a> {
 
         #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         {
-            let opt = self.ctx.scene_decode_options()?;
+            let opt = self
+                .ctx
+                .resource_language()
+                .scene_decode_options(&self.ctx.project_dir)?;
             self.scene_pck_cache = Some(ScenePck::load_lazy(&scene_pck_path, &opt)?);
         }
 
@@ -8413,7 +8418,7 @@ impl<'a> SceneVm<'a> {
         let save_cnt = self.configured_runtime_save_count(false);
         let quick_cnt = self.configured_runtime_save_count(true);
         Some(crate::original_save::save_file_path_with_counts(
-            self.ctx.save_base_dir(),
+            &self.ctx.project_dir,
             save_cnt,
             quick_cnt,
             save_kind,

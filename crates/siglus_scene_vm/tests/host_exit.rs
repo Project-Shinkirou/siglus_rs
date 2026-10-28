@@ -36,7 +36,6 @@ impl Project {
         ));
         let project = Self { base };
         fs::create_dir_all(project.game()).unwrap();
-        fs::create_dir_all(project.saves()).unwrap();
         let menu = Code::default().line(1).eof();
         fs::write(
             project.game().join("Scene.pck"),
@@ -54,14 +53,14 @@ impl Project {
         self.base.join("game")
     }
 
+    /// The original engine's save directory inside the game.
     fn saves(&self) -> PathBuf {
-        self.base.join("saves")
+        self.game().join("savedata")
     }
 
     fn host(&self) -> SiglusHost {
         let renderer = pollster::block_on(Renderer::new_offscreen(1280, 720)).unwrap();
         let mut config = SiglusHostConfig::new(self.game());
-        config.save_root = Some(self.saves());
         config.width = Some(1280);
         config.height = Some(720);
         SiglusHost::new_with_renderer_sync(config, renderer).unwrap()

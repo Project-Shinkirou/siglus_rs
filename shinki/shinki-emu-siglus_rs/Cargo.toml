@@ -21,6 +21,8 @@ dynamic = ["shinki-emu-abi/diagnostic-bridge"]
 shinki-emu-abi = { git = "https://github.com/Project-Shinkirou/ShinkiEMU", rev = "9cd899babbb54cbc84c3e9fbddfe192c2f9200c8" }
 siglus_scene_vm = { path = "../../crates/siglus_scene_vm", features = ["pausable-clock"] }
 pollster = "0.3"
+# Locates the beta.1/beta.2 save namespace for the one-time import.
+sha2 = "=0.10.9"
 
 [build-dependencies]
 shinki-emu-build = { git = "https://github.com/Project-Shinkirou/ShinkiEMU", rev = "9cd899babbb54cbc84c3e9fbddfe192c2f9200c8" }

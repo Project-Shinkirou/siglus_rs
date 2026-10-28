@@ -25,7 +25,6 @@ impl Project {
         ));
         let _ = fs::remove_dir_all(&base);
         fs::create_dir_all(base.join("game")).unwrap();
-        fs::create_dir_all(base.join("saves")).unwrap();
         let menu = Code::default().line(1).eof();
         fs::write(
             base.join("game/Scene.pck"),
@@ -46,7 +45,8 @@ impl Project {
                 if path.is_dir() { any(&path) } else { true }
             })
         }
-        any(&self.base.join("saves"))
+        let saves = self.base.join("game/savedata");
+        saves.is_dir() && any(&saves)
     }
 }
 
@@ -87,18 +87,7 @@ fn open_session(project: &Project, modals: Option<&AtomicU32>) -> abi::Session {
     INITIALIZED.store(true, Ordering::Release);
     let game = project.base.join("game");
     let game = game.to_str().unwrap();
-    let saves = project.base.join("saves");
-    let saves = saves.to_str().unwrap();
-    let config = [abi::ConfigEntry {
-        id: abi::Bytes::new(b"save_root"),
-        value: abi::ConfigValue {
-            kind: abi::VALUE_STRING,
-            reserved: 0,
-            integer: 0,
-            number: 0.0,
-            text: abi::Bytes::new(saves.as_bytes()),
-        },
-    }];
+    let config: [abi::ConfigEntry; 0] = [];
     let window = match modals {
         Some(count) => abi::WindowService {
             context: count as *const AtomicU32 as *mut _,

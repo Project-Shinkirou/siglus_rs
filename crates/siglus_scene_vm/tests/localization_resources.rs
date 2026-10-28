@@ -106,7 +106,7 @@ fn selected_pairs_use_native_gameexe_and_every_scene_string_without_vm_execution
         ),
         (ResourceLanguage::Chs, 1280, ["公开译文", "公开选项"]),
     ] {
-        let decoded = resource::load_selected_gameexe(&f.0, language, false).unwrap();
+        let decoded = resource::load_selected_gameexe(&f.0, language).unwrap();
         assert!(decoded.report.unwrap().used_lzss);
         let config = decoded.config;
         assert_eq!(
@@ -135,7 +135,7 @@ fn selected_pairs_use_native_gameexe_and_every_scene_string_without_vm_execution
             assert!(stream.get_string(2).is_err());
         }
         let mut notes = UnknownOpRecorder::default();
-        let tables = AssetTables::load_with_language(&f.0, language, false, &mut notes).unwrap();
+        let tables = AssetTables::load_with_language(&f.0, language, &mut notes).unwrap();
         assert_eq!(
             tables
                 .gameexe
@@ -164,9 +164,9 @@ fn missing_chs_half_never_mixes_with_the_valid_original_pair() {
         fs::remove_file(f.0.join(missing)).unwrap();
         assert!(ResourceLanguage::Chs.initial_scene_path(&f.0).is_err());
         assert!(ResourceLanguage::Chs.initial_gameexe_path(&f.0).is_err());
-        assert!(resource::load_selected_gameexe(&f.0, ResourceLanguage::Chs, false).is_err());
+        assert!(resource::load_selected_gameexe(&f.0, ResourceLanguage::Chs).is_err());
         assert!(ResourceLanguage::Original.initial_scene_path(&f.0).is_ok());
-        assert!(resource::load_selected_gameexe(&f.0, ResourceLanguage::Original, false).is_ok());
+        assert!(resource::load_selected_gameexe(&f.0, ResourceLanguage::Original).is_ok());
     }
 }
 
@@ -175,7 +175,7 @@ fn incompatible_or_corrupt_chs_config_is_an_error_not_an_original_fallback() {
     let f = Fixture::new();
     f.pair();
     f.write("Gameexe.chs", &gameexe(1280, "absent_menu"));
-    let decoded = resource::load_selected_gameexe(&f.0, ResourceLanguage::Chs, false).unwrap();
+    let decoded = resource::load_selected_gameexe(&f.0, ResourceLanguage::Chs).unwrap();
     let options = ResourceLanguage::Chs.scene_decode_options(&f.0).unwrap();
     let pack = ScenePck::load_lazy(
         &ResourceLanguage::Chs.initial_scene_path(&f.0).unwrap(),
@@ -186,12 +186,10 @@ fn incompatible_or_corrupt_chs_config_is_an_error_not_an_original_fallback() {
         resource::validate_selected_pair(ResourceLanguage::Chs, &decoded.config, &pack).is_err()
     );
     f.write("Gameexe.chs", b"not a configuration");
-    assert!(resource::load_selected_gameexe(&f.0, ResourceLanguage::Chs, false).is_err());
+    assert!(resource::load_selected_gameexe(&f.0, ResourceLanguage::Chs).is_err());
     let mut notes = UnknownOpRecorder::default();
-    assert!(
-        AssetTables::load_with_language(&f.0, ResourceLanguage::Chs, false, &mut notes).is_err()
-    );
-    assert!(resource::load_selected_gameexe(&f.0, ResourceLanguage::Original, false).is_ok());
+    assert!(AssetTables::load_with_language(&f.0, ResourceLanguage::Chs, &mut notes).is_err());
+    assert!(resource::load_selected_gameexe(&f.0, ResourceLanguage::Original).is_ok());
 }
 
 #[test]
@@ -300,280 +298,5 @@ fn localized_movie_resolution_replaces_only_the_exact_native_logical_movie() {
     assert_eq!(
         fs::read(movie).unwrap(),
         b"public append original movie path fixture"
-    );
-}
-
-#[test]
-fn managed_namespaces_separate_languages_datasets_and_default_game_roots() {
-    use siglus_scene_vm::original_save::{default_managed_save_root, managed_save_base};
-    let game = Fixture::new();
-    let other_game = Fixture::new();
-    let saves = Fixture::new();
-    game.pair();
-    other_game.pair();
-    let jp = managed_save_base(&game.0, ResourceLanguage::Original, &saves.0).unwrap();
-    let cn = managed_save_base(&game.0, ResourceLanguage::Chs, &saves.0).unwrap();
-    assert_ne!(jp, cn);
-    assert_eq!(
-        cn,
-        managed_save_base(&game.0, ResourceLanguage::Chs, &saves.0).unwrap()
-    );
-    game.write("Gameexe.chs", &gameexe(1440, "menu"));
-    assert_ne!(
-        cn,
-        managed_save_base(&game.0, ResourceLanguage::Chs, &saves.0).unwrap()
-    );
-    assert_ne!(
-        default_managed_save_root(&game.0).unwrap(),
-        default_managed_save_root(&other_game.0).unwrap()
-    );
-    assert!(!jp.exists());
-    assert!(!cn.exists());
-    let forbidden = game.0.join("must-not-be-created");
-    assert!(managed_save_base(&game.0, ResourceLanguage::Original, &forbidden).is_err());
-    assert!(!forbidden.exists());
-    assert!(
-        managed_save_base(
-            &game.0,
-            ResourceLanguage::Original,
-            std::path::Path::new("relative")
-        )
-        .is_err()
-    );
-}
-
-#[test]
-fn managed_native_saves_never_import_or_modify_the_installations_savedata() {
-    use siglus_scene_vm::{
-        original_save,
-        runtime::{CommandContext, forms::syscom, globals::SaveSlotState},
-    };
-    let game = Fixture::new();
-    let saves = Fixture::new();
-    game.pair();
-    let originals = ["global.sav", "config.sav", "read.sav", "0000.sav"];
-    for file in originals {
-        game.write(
-            &format!("savedata/{file}"),
-            b"public original save sentinel",
-        );
-    }
-    let mut ctx = CommandContext::new_with_resource_language(
-        game.0.clone(),
-        ResourceLanguage::Original,
-        Some(&saves.0),
-    )
-    .unwrap();
-    assert!(
-        ctx.save_base_dir()
-            .starts_with(fs::canonicalize(&saves.0).unwrap())
-    );
-    assert_ne!(ctx.save_base_dir(), game.0);
-    syscom::load_global_save(&mut ctx).unwrap(); // corrupt original sentinels are not consulted
-    assert_eq!(ctx.globals.syscom.total_play_time, 0);
-    ctx.globals.syscom.total_play_time = 321;
-    syscom::write_global_save(&ctx);
-    let output = original_save::save_dir(ctx.save_base_dir());
-    for file in ["global.sav", "config.sav", "read.sav"] {
-        assert!(output.join(file).is_file());
-    }
-    let slot = SaveSlotState {
-        exist: true,
-        title: "public save".into(),
-        ..Default::default()
-    };
-    let envelope = original_save::OriginalLocalSaveEnvelope::from_slot_with_streams(
-        &slot,
-        vec![1, 2, 3],
-        vec![4, 5],
-    );
-    let slot_path = original_save::save_file_path_for_no(ctx.save_base_dir(), 0);
-    original_save::write_local_save_file(&slot_path, &slot, &envelope).unwrap();
-    let (_, restored) = original_save::read_local_save_file(&slot_path).unwrap();
-    assert_eq!(restored.title, "public save");
-    assert_eq!(restored.local_stream, [1, 2, 3]);
-    assert_eq!(restored.local_ex_stream, [4, 5]);
-    let mut reopened = CommandContext::new_with_resource_language(
-        game.0.clone(),
-        ResourceLanguage::Original,
-        Some(&saves.0),
-    )
-    .unwrap();
-    syscom::load_global_save(&mut reopened).unwrap();
-    assert_eq!(reopened.globals.syscom.total_play_time, 321);
-    let mut chinese = CommandContext::new_with_resource_language(
-        game.0.clone(),
-        ResourceLanguage::Chs,
-        Some(&saves.0),
-    )
-    .unwrap();
-    syscom::load_global_save(&mut chinese).unwrap();
-    assert_eq!(chinese.globals.syscom.total_play_time, 0);
-    assert_ne!(chinese.save_base_dir(), ctx.save_base_dir());
-    for file in originals {
-        assert_eq!(
-            fs::read(game.0.join(format!("savedata/{file}"))).unwrap(),
-            b"public original save sentinel"
-        );
-    }
-    assert!(!game.0.join("key.toml").exists());
-}
-
-#[test]
-fn failed_managed_save_reads_preserve_both_source_and_managed_files() {
-    use siglus_scene_vm::{
-        original_save,
-        runtime::{CommandContext, forms::syscom},
-    };
-    let game = Fixture::new();
-    let saves = Fixture::new();
-    game.pair();
-    game.write("savedata/global.sav", b"public untouched source");
-    for file in ["global.sav", "config.sav", "read.sav"] {
-        let mut ctx = CommandContext::new_with_resource_language(
-            game.0.clone(),
-            ResourceLanguage::Original,
-            Some(&saves.0),
-        )
-        .unwrap();
-        let directory = original_save::save_dir(ctx.save_base_dir());
-        fs::create_dir_all(&directory).unwrap();
-        let path = directory.join(file);
-        fs::write(&path, b"public corrupt managed save").unwrap();
-        assert!(syscom::load_global_save(&mut ctx).is_err());
-        assert_eq!(fs::read(&path).unwrap(), b"public corrupt managed save");
-        assert_eq!(
-            fs::read(game.0.join("savedata/global.sav")).unwrap(),
-            b"public untouched source"
-        );
-        fs::remove_file(path).unwrap();
-    }
-}
-
-#[test]
-fn managed_capture_writes_use_native_png_and_reject_paths_outside_the_save_root() {
-    use siglus_scene_vm::{
-        assets::RgbaImage,
-        runtime::{
-            CommandContext, Value, VmCallMeta,
-            forms::{codes, syscom},
-        },
-    };
-    let game = Fixture::new();
-    let saves = Fixture::new();
-    game.pair();
-    game.write("savedata/capture.png", b"public original image sentinel");
-    let mut ctx = CommandContext::new_with_resource_language(
-        game.0.clone(),
-        ResourceLanguage::Original,
-        Some(&saves.0),
-    )
-    .unwrap();
-    assert!(ctx.save_path("../outside.png").is_err());
-    assert!(
-        ctx.save_path(&game.0.join("savedata/capture.png").to_string_lossy())
-            .is_err()
-    );
-    fs::create_dir_all(ctx.save_base_dir().join("savedata")).unwrap();
-    ctx.globals.syscom.capture_buffer = Some(RgbaImage {
-        width: 1,
-        height: 1,
-        center_x: 0,
-        center_y: 0,
-        rgba: vec![255, 0, 0, 255],
-    });
-    ctx.vm_call = Some(VmCallMeta {
-        element: vec![63, codes::syscom_op::SAVE_CAPTURE_BUFFER_TO_FILE],
-        ..Default::default()
-    });
-    assert!(
-        syscom::dispatch(
-            &mut ctx,
-            63,
-            &[
-                Value::Str("savedata/capture".into()),
-                Value::Str("png".into())
-            ]
-        )
-        .unwrap()
-    );
-    assert_eq!(ctx.pop().and_then(|value| value.as_i64()), Some(1));
-    let output = ctx.save_path("savedata/capture.png").unwrap();
-    let image = siglus_scene_vm::assets::load_image_any(&output, 0).unwrap();
-    assert_eq!(image.rgba, [255, 0, 0, 255]);
-    assert!(
-        siglus_scene_vm::runtime::forms::global::dispatch_global_form(
-            &mut ctx,
-            siglus_scene_vm::runtime::constants::elm_value::GLOBAL_CAPTURE_FROM_FILE as u32,
-            &[Value::Str("savedata/capture.png".into())],
-        )
-        .unwrap()
-    );
-    assert_eq!(ctx.pop().and_then(|value| value.as_i64()), Some(0));
-    assert_eq!(
-        fs::read(game.0.join("savedata/capture.png")).unwrap(),
-        b"public original image sentinel"
-    );
-}
-
-#[test]
-fn native_text_file_loads_do_not_fall_back_or_traverse_into_original_saves() {
-    use siglus_scene_vm::runtime::{CommandContext, Value, VmCallMeta, constants, forms::file};
-    let game = Fixture::new();
-    let saves = Fixture::new();
-    game.pair();
-    game.write("savedata/private.txt", b"public original save text");
-    game.write("dat/asset.txt", b"public game asset");
-    let mut ctx = CommandContext::new_with_resource_language(
-        game.0.clone(),
-        ResourceLanguage::Original,
-        Some(&saves.0),
-    )
-    .unwrap();
-    ctx.vm_call = Some(VmCallMeta {
-        element: vec![1234, constants::elm_value::FILE_LOAD_TXT],
-        ..Default::default()
-    });
-    ctx.globals
-        .str_lists
-        .insert(123, vec!["previous state".into()]);
-    for filename in [
-        "savedata/private.txt".to_string(),
-        "dat/../savedata/private.txt".to_string(),
-        game.0
-            .join("savedata/private.txt")
-            .to_string_lossy()
-            .into_owned(),
-    ] {
-        assert!(file::dispatch(&mut ctx, 1234, &[Value::Str(filename), Value::Int(123)]).unwrap());
-        assert_eq!(ctx.pop().and_then(|value| value.as_i64()), Some(0));
-        assert_eq!(ctx.globals.str_lists[&123], ["previous state"]);
-    }
-    let target = ctx.save_path("savedata/private.txt").unwrap();
-    fs::create_dir_all(target.parent().unwrap()).unwrap();
-    fs::write(&target, b"public managed save text").unwrap();
-    assert!(
-        file::dispatch(
-            &mut ctx,
-            1234,
-            &[Value::Str("savedata/private.txt".into()), Value::Int(123)]
-        )
-        .unwrap()
-    );
-    assert_eq!(ctx.pop().and_then(|value| value.as_i64()), Some(1));
-    assert_eq!(ctx.globals.str_lists[&123], ["public managed save text"]);
-    assert!(
-        file::dispatch(
-            &mut ctx,
-            1234,
-            &[Value::Str("asset.txt".into()), Value::Int(123)]
-        )
-        .unwrap()
-    );
-    assert_eq!(ctx.pop().and_then(|value| value.as_i64()), Some(1));
-    assert_eq!(ctx.globals.str_lists[&123], ["public game asset"]);
-    assert_eq!(
-        fs::read(game.0.join("savedata/private.txt")).unwrap(),
-        b"public original save text"
     );
 }

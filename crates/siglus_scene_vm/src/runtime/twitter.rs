@@ -437,7 +437,7 @@ fn persist_state(project_dir: &Path, state: &TwitterState) -> Result<()> {
 }
 
 pub fn save_state(ctx: &CommandContext) -> Result<()> {
-    persist_state(&ctx.save_base_dir, &ctx.globals.twitter)
+    persist_state(&ctx.project_dir, &ctx.globals.twitter)
 }
 
 pub fn ensure_state_loaded(ctx: &mut CommandContext) {
@@ -445,7 +445,7 @@ pub fn ensure_state_loaded(ctx: &mut CommandContext) {
         return;
     }
     ctx.globals.twitter.loaded = true;
-    let path = state_path(&ctx.save_base_dir);
+    let path = state_path(&ctx.project_dir);
     let Ok(text) = fs::read_to_string(&path) else {
         return;
     };

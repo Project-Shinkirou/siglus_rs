@@ -289,7 +289,7 @@ enum StageTarget {
 }
 
 fn load_thumb_image_id(ctx: &mut CommandContext, idx: i64) -> Option<ImageHandle> {
-    let dir = ctx.save_base_dir.join("savedata");
+    let dir = ctx.project_dir.join("savedata");
     for path in super::syscom::thumb_candidate_paths(&dir, idx) {
         if let Some(path) = crate::resource::resolve_game_file(&path).ok().flatten()
             && let Ok(img_id) = ctx.images.load_file(&path, 0)
@@ -5007,25 +5007,16 @@ fn bind_capture_backend(
 pub(crate) fn resolve_capture_file_path(
     project_dir: &Path,
     append_dir: &str,
-    save_base: &Path,
     raw: &str,
 ) -> Option<PathBuf> {
-    let normalized = raw.replace('\\', "/");
-    let raw_path = Path::new(&normalized);
+    let raw_path = Path::new(raw);
     let mut candidates = Vec::new();
     if raw_path.is_absolute() {
         candidates.push(raw_path.to_path_buf());
     } else {
-        if save_base != project_dir {
-            candidates.push(save_base.join(raw_path));
-            candidates.push(save_base.join("savedata").join(raw_path));
-            candidates.push(save_base.join("save").join(raw_path));
-        }
         candidates.push(project_dir.join(raw_path));
-        if save_base == project_dir {
-            candidates.push(project_dir.join("savedata").join(raw_path));
-            candidates.push(project_dir.join("save").join(raw_path));
-        }
+        candidates.push(project_dir.join("savedata").join(raw_path));
+        candidates.push(project_dir.join("save").join(raw_path));
         candidates.push(project_dir.join("dat").join(raw_path));
         if !append_dir.is_empty() {
             let append = Path::new(append_dir);
@@ -5048,8 +5039,7 @@ pub(crate) fn resolve_capture_file_path(
     }
     expanded
         .into_iter()
-        .filter_map(|p| crate::resource::resolve_game_file(&p).ok().flatten())
-        .find(|p| !crate::original_save::excludes_original_save_input(project_dir, save_base, p))
+        .find_map(|p| crate::resource::resolve_game_file(&p).ok().flatten())
 }
 
 const TNM_SCALE_UNIT: i64 = 1000;
@@ -9794,7 +9784,7 @@ fn dispatch_object_state_op(
         let (pos, _named) = split_pos_named(script_args);
         let file_opt = pos.first().and_then(|v| v.as_str());
         let path_opt = file_opt.and_then(|file| {
-            resolve_capture_file_path(&ctx.project_dir, &ctx.globals.append_dir, &ctx.save_base_dir, file)
+            resolve_capture_file_path(&ctx.project_dir, &ctx.globals.append_dir, file)
         });
         object_reinit_finish_free_like_cpp(ctx, obj, stage_idx, obj_runtime_slot);
         obj.used = true;

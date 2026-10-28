@@ -59,8 +59,6 @@ macro_rules! switch_startup_marker {
 pub struct SiglusHostConfig {
     pub project_dir: PathBuf,
     pub resource_language: crate::resource::ResourceLanguage,
-    /// None retains the standalone original save policy; embedded hosts always set this.
-    pub save_root: Option<PathBuf>,
     pub scene_name: Option<String>,
     pub scene_id: Option<usize>,
     pub width: Option<u32>,
@@ -72,7 +70,6 @@ impl SiglusHostConfig {
         Self {
             project_dir,
             resource_language: crate::resource::ResourceLanguage::Original,
-            save_root: None,
             scene_name: None,
             scene_id: None,
             width: None,
@@ -226,7 +223,6 @@ impl SiglusHost {
         let gameexe = match crate::resource::load_selected_gameexe(
             &config.project_dir,
             config.resource_language,
-            config.save_root.is_some(),
         ) {
             Ok(decoded) => Some(decoded.config),
             Err(err) if config.resource_language == crate::resource::ResourceLanguage::Chs => {
@@ -572,7 +568,11 @@ impl SiglusHost {
     }
 
     /// Suspend native time and audio together; no script pause state is altered.
-    #[cfg(all(not(target_arch = "wasm32"), not(feature = "virtual-clock"), feature = "pausable-clock"))]
+    #[cfg(all(
+        not(target_arch = "wasm32"),
+        not(feature = "virtual-clock"),
+        feature = "pausable-clock"
+    ))]
     pub fn set_suspended(&mut self, suspended: bool) {
         crate::platform_time::set_paused(suspended);
         self.vm.ctx.audio.set_suspended(suspended);
@@ -592,7 +592,10 @@ impl SiglusHost {
         &mut self.vm
     }
 
-    fn resolve_initial_size(config: &SiglusHostConfig, gameexe: Option<&GameexeConfig>) -> (u32, u32) {
+    fn resolve_initial_size(
+        config: &SiglusHostConfig,
+        gameexe: Option<&GameexeConfig>,
+    ) -> (u32, u32) {
         let cfg_size = gameexe
             .and_then(Self::gameexe_screen_size)
             .unwrap_or((1280, 720));
@@ -642,7 +645,6 @@ impl SiglusHost {
         }
     }
 
-
     fn init_vm(
         config: &SiglusHostConfig,
         boot: &BootConfig,
@@ -653,11 +655,9 @@ impl SiglusHost {
         switch_startup_marker!(b"siglus_switch: vm scene-pck-path begin\n\0");
         let scene_pck_path = config.resource_language.initial_scene_path(&project_dir)?;
         switch_startup_marker!(b"siglus_switch: vm scene-pck-path complete\n\0");
-        let opt = if config.save_root.is_some() {
-            siglus_assets::scene_pck::ScenePckDecodeOptions::from_project_dir(&project_dir)?
-        } else {
-            config.resource_language.scene_decode_options(&project_dir)?
-        };
+        let opt = config
+            .resource_language
+            .scene_decode_options(&project_dir)?;
         switch_startup_marker!(b"siglus_switch: vm scene-pck-open begin\n\0");
         let pck = {
             #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
@@ -675,7 +675,8 @@ impl SiglusHost {
         };
         switch_startup_marker!(b"siglus_switch: vm scene-pck-open complete\n\0");
         if config.resource_language == crate::resource::ResourceLanguage::Chs {
-            let gameexe = gameexe.ok_or_else(|| anyhow::anyhow!("selected CHS Gameexe is missing"))?;
+            let gameexe =
+                gameexe.ok_or_else(|| anyhow::anyhow!("selected CHS Gameexe is missing"))?;
             crate::resource::validate_selected_pair(config.resource_language, gameexe, &pck)?;
         }
 
@@ -683,7 +684,8 @@ impl SiglusHost {
             id
         } else if let Some(name) = config.scene_name.as_ref() {
             if config.resource_language == crate::resource::ResourceLanguage::Chs {
-                pck.find_scene_no(name).ok_or_else(|| anyhow::anyhow!("selected CHS start scene is absent"))?
+                pck.find_scene_no(name)
+                    .ok_or_else(|| anyhow::anyhow!("selected CHS start scene is absent"))?
             } else {
                 pck.find_scene_no(name).unwrap_or(0)
             }
@@ -710,9 +712,8 @@ impl SiglusHost {
         };
         stream.jump_to_z_label(start_z.max(0) as usize)?;
         switch_startup_marker!(b"siglus_switch: vm command-context begin\n\0");
-        let mut ctx = CommandContext::new_with_resource_language(
-            project_dir, config.resource_language, config.save_root.as_deref(),
-        )?;
+        let mut ctx =
+            CommandContext::new_with_resource_language(project_dir, config.resource_language)?;
         switch_startup_marker!(b"siglus_switch: vm command-context complete\n\0");
         let active_append = ctx.globals.append_dir.clone();
         switch_startup_marker!(b"siglus_switch: vm scene-metadata begin\n\0");

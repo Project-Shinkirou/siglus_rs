@@ -1,9 +1,6 @@
 use super::{Failure, Result, abi, boundary, initialized};
 use siglus_scene_vm::resource;
-use std::{
-    path::{Path, PathBuf},
-    sync::Mutex,
-};
+use std::{path::Path, sync::Mutex};
 
 const fn text(s: &'static str) -> abi::Bytes {
     abi::Bytes {
@@ -20,67 +17,38 @@ struct LanguageChoices([abi::Bytes; 2]);
 unsafe impl Sync for LanguageChoices {}
 static LANGUAGE_CHOICES: LanguageChoices = LanguageChoices([text("original"), text("chs")]);
 static LANGUAGE_LABELS: LanguageChoices = LanguageChoices([text("原版"), text("简体中文")]);
-struct Fields([abi::ConfigField; 2]);
+struct Fields([abi::ConfigField; 1]);
 unsafe impl Sync for Fields {}
-static FIELDS: Fields = Fields([
-    abi::ConfigField {
-        id: text("resource_language"),
-        label: text("资源语言"),
-        group: text("语言"),
-        default_value: abi::ConfigValue {
-            kind: abi::VALUE_ENUM,
-            reserved: 0,
-            integer: 0,
-            number: 0.0,
-            text: text("original"),
-        },
-        integer_min: 0,
-        integer_max: 0,
-        number_min: 0.0,
-        number_max: 0.0,
-        max_bytes: 0,
-        flags: 0,
-        choices: LANGUAGE_CHOICES.0.as_ptr(),
-        choice_count: LANGUAGE_CHOICES.0.len(),
-        description: text(
-            "选择读取的剧本与图像资源；简体中文需要游戏目录内成对的 Scene.chs 与 Gameexe.chs。",
-        ),
-        choice_labels: LANGUAGE_LABELS.0.as_ptr(),
-        step: 0.0,
-        unit: text(""),
+static FIELDS: Fields = Fields([abi::ConfigField {
+    id: text("resource_language"),
+    label: text("资源语言"),
+    group: text("语言"),
+    default_value: abi::ConfigValue {
+        kind: abi::VALUE_ENUM,
+        reserved: 0,
+        integer: 0,
+        number: 0.0,
+        text: text("original"),
     },
-    abi::ConfigField {
-        id: text("save_root"),
-        label: text("存档目录"),
-        group: text("文件"),
-        default_value: abi::ConfigValue {
-            kind: abi::VALUE_STRING,
-            reserved: 0,
-            integer: 0,
-            number: 0.0,
-            text: text(""),
-        },
-        integer_min: 0,
-        integer_max: 0,
-        number_min: 0.0,
-        number_max: 0.0,
-        max_bytes: 4096,
-        flags: abi::CONFIG_FLAG_DIRECTORY_PATH,
-        choices: std::ptr::null(),
-        choice_count: 0,
-        description: text(
-            "存放存档的目录；留空时使用 ShinkiEMU 为该作品单独管理的存档目录，路径不相对于游戏目录。",
-        ),
-        choice_labels: std::ptr::null(),
-        step: 0.0,
-        unit: text(""),
-    },
-]);
+    integer_min: 0,
+    integer_max: 0,
+    number_min: 0.0,
+    number_max: 0.0,
+    max_bytes: 0,
+    flags: 0,
+    choices: LANGUAGE_CHOICES.0.as_ptr(),
+    choice_count: LANGUAGE_CHOICES.0.len(),
+    description: text(
+        "选择读取的剧本与图像资源；简体中文需要游戏目录内成对的 Scene.chs 与 Gameexe.chs。",
+    ),
+    choice_labels: LANGUAGE_LABELS.0.as_ptr(),
+    step: 0.0,
+    unit: text(""),
+}]);
 
 #[derive(Debug)]
 pub(super) struct EmbeddedConfig {
     pub resource_language: resource::ResourceLanguage,
-    pub save_root: Option<PathBuf>,
 }
 
 pub(super) unsafe fn parse(entries: &[abi::ConfigEntry]) -> Result<EmbeddedConfig> {
@@ -93,7 +61,6 @@ pub(super) unsafe fn parse(entries: &[abi::ConfigEntry]) -> Result<EmbeddedConfi
     })?;
     let mut config = EmbeddedConfig {
         resource_language: resource::ResourceLanguage::Original,
-        save_root: None,
     };
     for entry in entries {
         match unsafe { entry.id.text(128)? } {
@@ -103,12 +70,6 @@ pub(super) unsafe fn parse(entries: &[abi::ConfigEntry]) -> Result<EmbeddedConfi
                     "chs" => resource::ResourceLanguage::Chs,
                     _ => return Err(abi::INVALID_ARGUMENT.into()),
                 };
-            }
-            "save_root" => {
-                let value = unsafe { entry.value.text.text(4096)? };
-                if !value.is_empty() {
-                    config.save_root = Some(PathBuf::from(value));
-                }
             }
             _ => return Err(abi::INVALID_ARGUMENT.into()),
         }
@@ -175,7 +136,7 @@ pub(super) unsafe extern "C" fn probe(
     })
 }
 pub(super) fn screen_size(root: &Path, language: resource::ResourceLanguage) -> Result<(u32, u32)> {
-    let config = resource::load_selected_gameexe(root, language, true)
+    let config = resource::load_selected_gameexe(root, language)
         .map_err(Failure::native)?
         .config;
     let Some(entry) = config.get_entry("SCREEN_SIZE") else {
@@ -239,7 +200,6 @@ mod tests {
             default.resource_language,
             resource::ResourceLanguage::Original
         );
-        assert!(default.save_root.is_none());
         assert_eq!(
             unsafe { parse(&[entry("original")]) }
                 .unwrap()
@@ -252,7 +212,6 @@ mod tests {
         );
     }
 
-
     #[test]
     fn invalid_language_type_choice_or_duplicate_is_rejected() {
         let mut wrong_type = entry("chs");
@@ -263,19 +222,5 @@ mod tests {
         let mut unknown = entry("chs");
         unknown.id = text("unknown_language");
         assert!(unsafe { parse(&[unknown]) }.is_err());
-    }
-
-    #[test]
-    fn save_root_is_a_typed_string_and_does_not_hide_language_selection() {
-        let mut root = entry("D:/public-save-root");
-        root.id = text("save_root");
-        root.value.kind = abi::VALUE_STRING;
-        for entries in [[root, entry("chs")], [entry("chs"), root]] {
-            let config = unsafe { parse(&entries) }.unwrap();
-            assert_eq!(config.resource_language, resource::ResourceLanguage::Chs);
-            assert_eq!(config.save_root, Some(PathBuf::from("D:/public-save-root")));
-        }
-        root.value.kind = abi::VALUE_ENUM;
-        assert!(unsafe { parse(&[root]) }.is_err());
     }
 }

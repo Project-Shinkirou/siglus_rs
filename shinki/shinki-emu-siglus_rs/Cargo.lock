@@ -2493,6 +2493,7 @@ name = "shinki-emu-siglus_rs"
 version = "1.0.0"
 dependencies = [
  "pollster",
+ "sha2",
  "shinki-emu-abi",
  "shinki-emu-build",
  "siglus_scene_vm",
@@ -2569,7 +2570,6 @@ dependencies = [
  "raw-window-handle",
  "rustc-hash 2.1.1",
  "serde_json",
- "sha2",
  "shion-xfile",
  "siglus_assets",
  "siglus_key_recovery",

@@ -4,6 +4,7 @@ use std::{
     panic::{AssertUnwindSafe, catch_unwind},
     sync::atomic::{AtomicBool, Ordering},
 };
+mod beta_saves;
 mod configuration;
 mod frames;
 mod input;

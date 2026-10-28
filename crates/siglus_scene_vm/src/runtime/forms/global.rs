@@ -1762,7 +1762,7 @@ fn dispatch_capture_command(
                 panic!("GLOBAL.CAPTURE_FROM_FILE requires file name");
             };
             let Some(path) =
-                stage::resolve_capture_file_path(&ctx.project_dir, &ctx.globals.append_dir, &ctx.save_base_dir, file)
+                stage::resolve_capture_file_path(&ctx.project_dir, &ctx.globals.append_dir, file)
             else {
                 panic!("GLOBAL.CAPTURE_FROM_FILE cannot resolve file: {file}");
             };

@@ -1,5 +1,6 @@
 use super::{
-    ACTIVE, Failure, Result, abi, boundary, configuration, frames, initialized, input, platform,
+    ACTIVE, Failure, Result, abi, beta_saves, boundary, configuration, frames, initialized, input,
+    platform,
 };
 use siglus_scene_vm::{
     host::{SiglusHost, SiglusHostConfig, default_frame_interval_ms},
@@ -152,7 +153,7 @@ pub(super) unsafe extern "C" fn open(
         }
         let opening = Opening;
         let id = NEXT_HANDLE
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+            .try_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
             .map_err(|_| abi::CAPACITY)?;
         let shared = Arc::new(Shared {
             mailbox: Mutex::new(Mailbox {
@@ -236,12 +237,8 @@ fn run(
     ready: mpsc::SyncSender<abi::SurfaceInfo>,
 ) -> Result<()> {
     shared.host_cancel.check(shared.epoch)?;
+    beta_saves::import(&path).map_err(Failure::native)?;
     let resource_language = options.resource_language;
-    let save_root = match options.save_root {
-        Some(root) => root,
-        None => siglus_scene_vm::original_save::default_managed_save_root(&path)
-            .map_err(Failure::native)?,
-    };
     let (width, height) = configuration::screen_size(&path, resource_language)?;
     shared.host_cancel.check(shared.epoch)?;
     let renderer =
@@ -249,7 +246,6 @@ fn run(
     shared.host_cancel.check(shared.epoch)?;
     let mut config = SiglusHostConfig::new(path);
     config.resource_language = resource_language;
-    config.save_root = Some(save_root);
     config.width = Some(width);
     config.height = Some(height);
     let mut host = SiglusHost::new_with_renderer_sync(config, renderer).map_err(Failure::native)?;

@@ -710,10 +710,13 @@ fn ensure_slot(slots: &mut Vec<SaveSlotState>, idx: usize) -> &mut SaveSlotState
 }
 
 pub fn menu_save_slot(ctx: &mut CommandContext, quick: bool, idx: usize) {
-    let path = slot_path_with_counts(&ctx.save_base_dir, quick,
-    idx,
-    configured_save_count(ctx, false),
-    configured_save_count(ctx, true),);
+    let path = slot_path_with_counts(
+        &ctx.project_dir,
+        quick,
+        idx,
+        configured_save_count(ctx, false),
+        configured_save_count(ctx, true),
+    );
     trace_save_load_event(ctx, "menu_save_slot", quick, idx, Some(&path));
     // Do NOT pre-populate the slot from current runtime state here. The VM-level
     // perform_runtime_save_request consumes the local_save_snapshot built at
@@ -729,26 +732,35 @@ pub fn menu_save_slot(ctx: &mut CommandContext, quick: bool, idx: usize) {
 }
 
 pub fn menu_load_slot(ctx: &mut CommandContext, quick: bool, idx: usize) {
-    let path = slot_path_with_counts(&ctx.save_base_dir, quick,
-    idx,
-    configured_save_count(ctx, false),
-    configured_save_count(ctx, true),);
+    let path = slot_path_with_counts(
+        &ctx.project_dir,
+        quick,
+        idx,
+        configured_save_count(ctx, false),
+        configured_save_count(ctx, true),
+    );
     trace_save_load_event(ctx, "menu_load_slot", quick, idx, Some(&path));
     let save_cnt = configured_save_count(ctx, false);
     let quick_cnt = configured_save_count(ctx, true);
     if quick {
-        ensure_slot_loaded_with_counts(&ctx.save_base_dir, true,
-        save_cnt,
-        quick_cnt,
-        &mut ctx.globals.syscom.quick_save_slots,
-        idx,);
+        ensure_slot_loaded_with_counts(
+            &ctx.project_dir,
+            true,
+            save_cnt,
+            quick_cnt,
+            &mut ctx.globals.syscom.quick_save_slots,
+            idx,
+        );
         ctx.request_runtime_load(RuntimeSaveKind::Quick, idx);
     } else {
-        ensure_slot_loaded_with_counts(&ctx.save_base_dir, false,
-        save_cnt,
-        quick_cnt,
-        &mut ctx.globals.syscom.save_slots,
-        idx,);
+        ensure_slot_loaded_with_counts(
+            &ctx.project_dir,
+            false,
+            save_cnt,
+            quick_cnt,
+            &mut ctx.globals.syscom.save_slots,
+            idx,
+        );
         ctx.request_runtime_load(RuntimeSaveKind::Normal, idx);
     }
 }
@@ -761,11 +773,14 @@ fn slot_exists_for_menu_action(ctx: &mut CommandContext, quick: bool, idx: usize
     let save_cnt = configured_save_count(ctx, false);
     let quick_cnt = configured_save_count(ctx, true);
     if quick {
-        ensure_slot_loaded_with_counts(&ctx.save_base_dir, true,
-        save_cnt,
-        quick_cnt,
-        &mut ctx.globals.syscom.quick_save_slots,
-        idx,);
+        ensure_slot_loaded_with_counts(
+            &ctx.project_dir,
+            true,
+            save_cnt,
+            quick_cnt,
+            &mut ctx.globals.syscom.quick_save_slots,
+            idx,
+        );
         ctx.globals
             .syscom
             .quick_save_slots
@@ -773,11 +788,14 @@ fn slot_exists_for_menu_action(ctx: &mut CommandContext, quick: bool, idx: usize
             .map(|slot| slot.exist)
             .unwrap_or(false)
     } else {
-        ensure_slot_loaded_with_counts(&ctx.save_base_dir, false,
-        save_cnt,
-        quick_cnt,
-        &mut ctx.globals.syscom.save_slots,
-        idx,);
+        ensure_slot_loaded_with_counts(
+            &ctx.project_dir,
+            false,
+            save_cnt,
+            quick_cnt,
+            &mut ctx.globals.syscom.save_slots,
+            idx,
+        );
         ctx.globals
             .syscom
             .save_slots
@@ -832,10 +850,13 @@ fn local_save_available(ctx: &CommandContext) -> bool {
 }
 
 fn local_save_file_exists(ctx: &CommandContext, kind: SaveKind, idx: usize) -> bool {
-    let path = original_save::save_file_path_with_counts(&ctx.save_base_dir, configured_save_count(ctx, false),
-    configured_save_count(ctx, true),
-    kind,
-    idx,);
+    let path = original_save::save_file_path_with_counts(
+        &ctx.project_dir,
+        configured_save_count(ctx, false),
+        configured_save_count(ctx, true),
+        kind,
+        idx,
+    );
     original_save::read_slot_from_path(&path)
         .map(|slot| slot.exist)
         .unwrap_or(false)
@@ -1052,7 +1073,7 @@ pub(crate) fn capture_for_local_save(
         }
     };
     let resized = resize_rgba(img, width.max(1), height.max(1));
-    let path = original_save::save_dir(&ctx.save_base_dir).join(format!("{capture_time}.png"));
+    let path = original_save::save_dir(&ctx.project_dir).join(format!("{capture_time}.png"));
     if let Err(err) = write_rgba_png_opaque(&path, &resized) {
         log::error!(
             "GLOBAL.CAPTURE_FOR_LOCAL_SAVE failed to write {}: {err:#}",
@@ -1073,7 +1094,7 @@ fn write_slot_thumb_for_save_no(ctx: &mut CommandContext, save_no: usize) {
             .record_note(&format!("save_thumb.capture.missing:{save_no}"));
         return;
     };
-    let path = thumb_path_for_no_with_config(&ctx.save_base_dir, config, save_no);
+    let path = thumb_path_for_no_with_config(&ctx.project_dir, config, save_no);
     if save_load_trace_enabled() {
         eprintln!(
             "[SG_SAVELOAD_TRACE][SYSCOM] write_slot_thumb save_no={} path={} size={}x{} type={:?}",
@@ -1627,7 +1648,7 @@ pub fn write_config_save(ctx: &CommandContext) {
     stream.push_bool(cfg.joypad_swap_ab);
     stream.push_bool(cfg.joypad_swap_xy);
 
-    if let Err(err) = original_save::write_config_save_file(&ctx.save_base_dir, &stream.into_inner())
+    if let Err(err) = original_save::write_config_save_file(&ctx.project_dir, &stream.into_inner())
     {
         log::error!("[SG_SAVE] failed to write config.sav: {err:#}");
     }
@@ -1635,14 +1656,14 @@ pub fn write_config_save(ctx: &CommandContext) {
 
 fn load_config_save(ctx: &mut CommandContext) -> Result<()> {
     let mut cfg = original_config_defaults(ctx);
-    let config_path = original_save::save_dir(&ctx.save_base_dir).join("config.sav");
+    let config_path = original_save::save_dir(&ctx.project_dir).join("config.sav");
     if !crate::resource::game_file_exists(&config_path) {
         resize_original_config_arrays(ctx, &mut cfg);
         ctx.globals.syscom.original_config = cfg;
         apply_original_config_to_runtime(ctx);
         return Ok(());
     }
-    let (header, payload) = original_save::read_config_save_file(&ctx.save_base_dir)?;
+    let (header, payload) = original_save::read_config_save_file(&ctx.project_dir)?;
     save_versions::read_config(
         header,
         &payload,
@@ -1669,11 +1690,11 @@ fn write_read_flags(ctx: &CommandContext) -> Result<()> {
         flags.truncate(*flag_count);
         rows.push((scene_name.clone(), flags));
     }
-    original_save::write_read_save_file(&ctx.save_base_dir, &rows)
+    original_save::write_read_save_file(&ctx.project_dir, &rows)
 }
 
 fn load_read_flags(ctx: &mut CommandContext) -> Result<()> {
-    let read_path = original_save::save_dir(&ctx.save_base_dir).join("read.sav");
+    let read_path = original_save::save_dir(&ctx.project_dir).join("read.sav");
     if crate::resource::resolve_windows_case_insensitive_file(&read_path)?.is_none() {
         return Ok(());
     }
@@ -1684,9 +1705,8 @@ fn load_read_flags(ctx: &mut CommandContext) -> Result<()> {
             .ensure_read_flag_count(scene_no as i64, *flag_count);
     }
 
-    let rows = match original_save::read_read_save_file(&ctx.save_base_dir) {
+    let rows = match original_save::read_read_save_file(&ctx.project_dir) {
         Ok(rows) => rows,
-        Err(error) if ctx.save_base_dir != ctx.project_dir => return Err(error),
         Err(_) => return Ok(()),
     };
     for (scene_name, saved_flags) in rows {
@@ -1859,7 +1879,7 @@ pub fn write_global_save(ctx: &CommandContext) {
     }
 
     let payload = stream.into_inner();
-    if let Err(err) = original_save::write_global_save_file(&ctx.save_base_dir, &payload) {
+    if let Err(err) = original_save::write_global_save_file(&ctx.project_dir, &payload) {
         eprintln!("[SG_SAVE] failed to write global.sav: {err:#}");
     }
     if let Err(err) = write_read_flags(ctx) {
@@ -1868,9 +1888,9 @@ pub fn write_global_save(ctx: &CommandContext) {
 }
 
 pub fn load_global_save(ctx: &mut CommandContext) -> Result<()> {
-    let global_path = original_save::save_dir(&ctx.save_base_dir).join("global.sav");
+    let global_path = original_save::save_dir(&ctx.project_dir).join("global.sav");
     if crate::resource::resolve_windows_case_insensitive_file(&global_path)?.is_some() {
-        let (header, payload) = original_save::read_global_save_file(&ctx.save_base_dir)?;
+        let (header, payload) = original_save::read_global_save_file(&ctx.project_dir)?;
         let fixed_flag_cnt = ctx
             .tables
             .gameexe
@@ -1977,7 +1997,7 @@ pub(crate) fn read_save_flag_values(
     raw_idx: i64,
     flag_cnt: usize,
 ) -> Option<Vec<i64>> {
-    let project_dir = ctx.save_base_dir.clone();
+    let project_dir = ctx.project_dir.clone();
     let save_cnt = configured_save_count(ctx, false);
     let quick_cnt = configured_save_count(ctx, true);
     let configured = if quick { quick_cnt } else { save_cnt };
@@ -2006,7 +2026,7 @@ pub(crate) fn write_save_flag_values(
     raw_idx: i64,
     values: &[i64],
 ) -> bool {
-    let project_dir = ctx.save_base_dir.clone();
+    let project_dir = ctx.project_dir.clone();
     let save_cnt = configured_save_count(ctx, false);
     let quick_cnt = configured_save_count(ctx, true);
     let configured = if quick { quick_cnt } else { save_cnt };
@@ -2059,7 +2079,7 @@ pub(crate) fn sync_save_slots_from_disk(ctx: &mut CommandContext, quick: bool) {
             if quick { "quick" } else { "normal" }
         );
     }
-    let project_dir = ctx.save_base_dir.clone();
+    let project_dir = ctx.project_dir.clone();
     let save_cnt = configured_save_count(ctx, false);
     let quick_cnt = configured_save_count(ctx, true);
     if quick {
@@ -2495,7 +2515,7 @@ fn write_msg_back(ctx: &CommandContext) {
     let Some(st) = ctx.globals.msgbk_forms.get(&form_id) else {
         return;
     };
-    let dir = save_dir(&ctx.save_base_dir);
+    let dir = save_dir(&ctx.project_dir);
     let path = dir.join("msg_back.txt");
 
     let mut out = String::new();
@@ -4000,6 +4020,18 @@ fn cfg_set_str(st: &mut crate::runtime::globals::SyscomRuntimeState, key: i32, v
     st.config_str.insert(key, value);
 }
 
+fn join_game_path(base: &Path, raw: &str) -> PathBuf {
+    if raw.is_empty() {
+        return base.to_path_buf();
+    }
+    let norm = raw.replace('\\', "/");
+    let p = Path::new(&norm);
+    if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        base.join(p)
+    }
+}
 
 fn remove_game_file(path: &Path) {
     let _ = fs::remove_file(path);
@@ -4207,7 +4239,7 @@ fn open_tweet_dialog(ctx: &mut CommandContext) -> Result<()> {
         return Ok(());
     };
 
-    let out_path = save_dir(&ctx.save_base_dir).join("tweet.png");
+    let out_path = save_dir(&ctx.project_dir).join("tweet.png");
     write_rgba_png_opaque(&out_path, &capture)?;
     crate::runtime::twitter::ensure_state_loaded(ctx);
     let initial_text = gameexe_unquoted_owned(ctx, "TWITTER.INITIAL_TWEET_TEXT");
@@ -4840,11 +4872,14 @@ pub fn dispatch(ctx: &mut CommandContext, form_id: u32, args: &[Value]) -> Resul
             let idx = raw_idx as usize;
             {
                 let quick_cnt = configured_save_count(ctx, true);
-                ensure_slot_loaded_with_counts(&ctx.save_base_dir, false,
-                save_cnt,
-                quick_cnt,
-                &mut ctx.globals.syscom.save_slots,
-                idx,);
+                ensure_slot_loaded_with_counts(
+                    &ctx.project_dir,
+                    false,
+                    save_cnt,
+                    quick_cnt,
+                    &mut ctx.globals.syscom.save_slots,
+                    idx,
+                );
             }
             let v = ctx
                 .globals
@@ -4871,11 +4906,14 @@ pub fn dispatch(ctx: &mut CommandContext, form_id: u32, args: &[Value]) -> Resul
             let idx = raw_idx as usize;
             {
                 let quick_cnt = configured_save_count(ctx, true);
-                ensure_slot_loaded_with_counts(&ctx.save_base_dir, false,
-                save_cnt,
-                quick_cnt,
-                &mut ctx.globals.syscom.save_slots,
-                idx,);
+                ensure_slot_loaded_with_counts(
+                    &ctx.project_dir,
+                    false,
+                    save_cnt,
+                    quick_cnt,
+                    &mut ctx.globals.syscom.save_slots,
+                    idx,
+                );
             }
             let v = ctx
                 .globals
@@ -4895,11 +4933,14 @@ pub fn dispatch(ctx: &mut CommandContext, form_id: u32, args: &[Value]) -> Resul
             }
             let idx = raw_idx as usize;
             let quick_cnt = configured_save_count(ctx, true);
-            ensure_slot_loaded_with_counts(&ctx.save_base_dir, false,
-            save_cnt,
-            quick_cnt,
-            &mut ctx.globals.syscom.save_slots,
-            idx,);
+            ensure_slot_loaded_with_counts(
+                &ctx.project_dir,
+                false,
+                save_cnt,
+                quick_cnt,
+                &mut ctx.globals.syscom.save_slots,
+                idx,
+            );
             // Original SET_SAVE_COMMENT first calls tnm_load_save_header(); if
             // the slot does not exist it is a no-op and must not create a save.
             if !ctx
@@ -4918,11 +4959,14 @@ pub fn dispatch(ctx: &mut CommandContext, form_id: u32, args: &[Value]) -> Resul
                 .unwrap_or("")
                 .to_string();
             ctx.globals.syscom.save_slots[idx].comment = comment;
-            persist_slot_with_counts(&ctx.save_base_dir, false,
-            save_cnt,
-            quick_cnt,
-            &mut ctx.globals.syscom.save_slots,
-            idx,);
+            persist_slot_with_counts(
+                &ctx.project_dir,
+                false,
+                save_cnt,
+                quick_cnt,
+                &mut ctx.globals.syscom.save_slots,
+                idx,
+            );
             return Ok(true);
         }
         GET_SAVE_VALUE => {
@@ -4933,11 +4977,14 @@ pub fn dispatch(ctx: &mut CommandContext, form_id: u32, args: &[Value]) -> Resul
             }
             let idx = raw_idx as usize;
             let quick_cnt = configured_save_count(ctx, true);
-            ensure_slot_loaded_with_counts(&ctx.save_base_dir, false,
-            save_cnt,
-            quick_cnt,
-            &mut ctx.globals.syscom.save_slots,
-            idx,);
+            ensure_slot_loaded_with_counts(
+                &ctx.project_dir,
+                false,
+                save_cnt,
+                quick_cnt,
+                &mut ctx.globals.syscom.save_slots,
+                idx,
+            );
             let Some(slot) = ctx
                 .globals
                 .syscom
@@ -4977,11 +5024,14 @@ pub fn dispatch(ctx: &mut CommandContext, form_id: u32, args: &[Value]) -> Resul
             }
             let idx = raw_idx as usize;
             let quick_cnt = configured_save_count(ctx, true);
-            ensure_slot_loaded_with_counts(&ctx.save_base_dir, false,
-            save_cnt,
-            quick_cnt,
-            &mut ctx.globals.syscom.save_slots,
-            idx,);
+            ensure_slot_loaded_with_counts(
+                &ctx.project_dir,
+                false,
+                save_cnt,
+                quick_cnt,
+                &mut ctx.globals.syscom.save_slots,
+                idx,
+            );
             if !ctx
                 .globals
                 .syscom
@@ -5017,11 +5067,14 @@ pub fn dispatch(ctx: &mut CommandContext, form_id: u32, args: &[Value]) -> Resul
                     slot.values.insert(i as i32, value);
                 }
             }
-            persist_slot_with_counts(&ctx.save_base_dir, false,
-            save_cnt,
-            quick_cnt,
-            &mut ctx.globals.syscom.save_slots,
-            idx,);
+            persist_slot_with_counts(
+                &ctx.project_dir,
+                false,
+                save_cnt,
+                quick_cnt,
+                &mut ctx.globals.syscom.save_slots,
+                idx,
+            );
             return Ok(true);
         }
         GET_QUICK_SAVE_EXIST
@@ -5042,11 +5095,14 @@ pub fn dispatch(ctx: &mut CommandContext, form_id: u32, args: &[Value]) -> Resul
             let idx = raw_idx as usize;
             {
                 let save_cnt = configured_save_count(ctx, false);
-                ensure_slot_loaded_with_counts(&ctx.save_base_dir, true,
-                save_cnt,
-                quick_cnt,
-                &mut ctx.globals.syscom.quick_save_slots,
-                idx,);
+                ensure_slot_loaded_with_counts(
+                    &ctx.project_dir,
+                    true,
+                    save_cnt,
+                    quick_cnt,
+                    &mut ctx.globals.syscom.quick_save_slots,
+                    idx,
+                );
             }
             let v = ctx
                 .globals
@@ -5073,11 +5129,14 @@ pub fn dispatch(ctx: &mut CommandContext, form_id: u32, args: &[Value]) -> Resul
             let idx = raw_idx as usize;
             {
                 let save_cnt = configured_save_count(ctx, false);
-                ensure_slot_loaded_with_counts(&ctx.save_base_dir, true,
-                save_cnt,
-                quick_cnt,
-                &mut ctx.globals.syscom.quick_save_slots,
-                idx,);
+                ensure_slot_loaded_with_counts(
+                    &ctx.project_dir,
+                    true,
+                    save_cnt,
+                    quick_cnt,
+                    &mut ctx.globals.syscom.quick_save_slots,
+                    idx,
+                );
             }
             let v = ctx
                 .globals
@@ -5097,11 +5156,14 @@ pub fn dispatch(ctx: &mut CommandContext, form_id: u32, args: &[Value]) -> Resul
             }
             let idx = raw_idx as usize;
             let save_cnt = configured_save_count(ctx, false);
-            ensure_slot_loaded_with_counts(&ctx.save_base_dir, true,
-            save_cnt,
-            quick_cnt,
-            &mut ctx.globals.syscom.quick_save_slots,
-            idx,);
+            ensure_slot_loaded_with_counts(
+                &ctx.project_dir,
+                true,
+                save_cnt,
+                quick_cnt,
+                &mut ctx.globals.syscom.quick_save_slots,
+                idx,
+            );
             if !ctx
                 .globals
                 .syscom
@@ -5118,11 +5180,14 @@ pub fn dispatch(ctx: &mut CommandContext, form_id: u32, args: &[Value]) -> Resul
                 .unwrap_or("")
                 .to_string();
             ctx.globals.syscom.quick_save_slots[idx].comment = comment;
-            persist_slot_with_counts(&ctx.save_base_dir, true,
-            save_cnt,
-            quick_cnt,
-            &mut ctx.globals.syscom.quick_save_slots,
-            idx,);
+            persist_slot_with_counts(
+                &ctx.project_dir,
+                true,
+                save_cnt,
+                quick_cnt,
+                &mut ctx.globals.syscom.quick_save_slots,
+                idx,
+            );
             return Ok(true);
         }
         GET_QUICK_SAVE_VALUE => {
@@ -5133,11 +5198,14 @@ pub fn dispatch(ctx: &mut CommandContext, form_id: u32, args: &[Value]) -> Resul
             }
             let idx = raw_idx as usize;
             let save_cnt = configured_save_count(ctx, false);
-            ensure_slot_loaded_with_counts(&ctx.save_base_dir, true,
-            save_cnt,
-            quick_cnt,
-            &mut ctx.globals.syscom.quick_save_slots,
-            idx,);
+            ensure_slot_loaded_with_counts(
+                &ctx.project_dir,
+                true,
+                save_cnt,
+                quick_cnt,
+                &mut ctx.globals.syscom.quick_save_slots,
+                idx,
+            );
             let Some(slot) = ctx
                 .globals
                 .syscom
@@ -5175,11 +5243,14 @@ pub fn dispatch(ctx: &mut CommandContext, form_id: u32, args: &[Value]) -> Resul
             }
             let idx = raw_idx as usize;
             let save_cnt = configured_save_count(ctx, false);
-            ensure_slot_loaded_with_counts(&ctx.save_base_dir, true,
-            save_cnt,
-            quick_cnt,
-            &mut ctx.globals.syscom.quick_save_slots,
-            idx,);
+            ensure_slot_loaded_with_counts(
+                &ctx.project_dir,
+                true,
+                save_cnt,
+                quick_cnt,
+                &mut ctx.globals.syscom.quick_save_slots,
+                idx,
+            );
             if !ctx
                 .globals
                 .syscom
@@ -5215,20 +5286,26 @@ pub fn dispatch(ctx: &mut CommandContext, form_id: u32, args: &[Value]) -> Resul
                     slot.values.insert(i as i32, value);
                 }
             }
-            persist_slot_with_counts(&ctx.save_base_dir, true,
-            save_cnt,
-            quick_cnt,
-            &mut ctx.globals.syscom.quick_save_slots,
-            idx,);
+            persist_slot_with_counts(
+                &ctx.project_dir,
+                true,
+                save_cnt,
+                quick_cnt,
+                &mut ctx.globals.syscom.quick_save_slots,
+                idx,
+            );
             return Ok(true);
         }
         GET_END_SAVE_EXIST => {
             let save_cnt = configured_save_count(ctx, false);
             let quick_cnt = configured_save_count(ctx, true);
-            let end_path = original_save::save_file_path_with_counts(&ctx.save_base_dir, save_cnt,
-            quick_cnt,
-            SaveKind::End,
-            0,);
+            let end_path = original_save::save_file_path_with_counts(
+                &ctx.project_dir,
+                save_cnt,
+                quick_cnt,
+                SaveKind::End,
+                0,
+            );
             let v = if ctx.globals.syscom.end_save_exists
                 || crate::resource::game_file_exists(&end_path)
             {
@@ -5245,13 +5322,16 @@ pub fn dispatch(ctx: &mut CommandContext, form_id: u32, args: &[Value]) -> Resul
             let save_cnt = configured_save_count(ctx, false);
             let quick_cnt = configured_save_count(ctx, true);
             let thumb_config = save_thumb_config(ctx);
-            let ok = copy_slot(&ctx.save_base_dir, false,
-            save_cnt,
-            quick_cnt,
-            thumb_config,
-            &mut ctx.globals.syscom.save_slots,
-            src,
-            dst,);
+            let ok = copy_slot(
+                &ctx.project_dir,
+                false,
+                save_cnt,
+                quick_cnt,
+                thumb_config,
+                &mut ctx.globals.syscom.save_slots,
+                src,
+                dst,
+            );
             ctx.globals.syscom.last_menu_call = op;
             ctx.push(Value::Int(if ok { 1 } else { 0 }));
             return Ok(true);
@@ -5262,13 +5342,16 @@ pub fn dispatch(ctx: &mut CommandContext, form_id: u32, args: &[Value]) -> Resul
             let save_cnt = configured_save_count(ctx, false);
             let quick_cnt = configured_save_count(ctx, true);
             let thumb_config = save_thumb_config(ctx);
-            let ok = copy_slot(&ctx.save_base_dir, true,
-            save_cnt,
-            quick_cnt,
-            thumb_config,
-            &mut ctx.globals.syscom.quick_save_slots,
-            src,
-            dst,);
+            let ok = copy_slot(
+                &ctx.project_dir,
+                true,
+                save_cnt,
+                quick_cnt,
+                thumb_config,
+                &mut ctx.globals.syscom.quick_save_slots,
+                src,
+                dst,
+            );
             ctx.globals.syscom.last_menu_call = op;
             ctx.push(Value::Int(if ok { 1 } else { 0 }));
             return Ok(true);
@@ -5279,13 +5362,16 @@ pub fn dispatch(ctx: &mut CommandContext, form_id: u32, args: &[Value]) -> Resul
             let save_cnt = configured_save_count(ctx, false);
             let quick_cnt = configured_save_count(ctx, true);
             let thumb_config = save_thumb_config(ctx);
-            let ok = change_slot(&ctx.save_base_dir, false,
-            save_cnt,
-            quick_cnt,
-            thumb_config,
-            &mut ctx.globals.syscom.save_slots,
-            a,
-            b,);
+            let ok = change_slot(
+                &ctx.project_dir,
+                false,
+                save_cnt,
+                quick_cnt,
+                thumb_config,
+                &mut ctx.globals.syscom.save_slots,
+                a,
+                b,
+            );
             ctx.globals.syscom.last_menu_call = op;
             ctx.push(Value::Int(if ok { 1 } else { 0 }));
             return Ok(true);
@@ -5296,13 +5382,16 @@ pub fn dispatch(ctx: &mut CommandContext, form_id: u32, args: &[Value]) -> Resul
             let save_cnt = configured_save_count(ctx, false);
             let quick_cnt = configured_save_count(ctx, true);
             let thumb_config = save_thumb_config(ctx);
-            let ok = change_slot(&ctx.save_base_dir, true,
-            save_cnt,
-            quick_cnt,
-            thumb_config,
-            &mut ctx.globals.syscom.quick_save_slots,
-            a,
-            b,);
+            let ok = change_slot(
+                &ctx.project_dir,
+                true,
+                save_cnt,
+                quick_cnt,
+                thumb_config,
+                &mut ctx.globals.syscom.quick_save_slots,
+                a,
+                b,
+            );
             ctx.globals.syscom.last_menu_call = op;
             ctx.push(Value::Int(if ok { 1 } else { 0 }));
             return Ok(true);
@@ -5312,12 +5401,15 @@ pub fn dispatch(ctx: &mut CommandContext, form_id: u32, args: &[Value]) -> Resul
             let save_cnt = configured_save_count(ctx, false);
             let quick_cnt = configured_save_count(ctx, true);
             let thumb_config = save_thumb_config(ctx);
-            let ok = delete_slot(&ctx.save_base_dir, false,
-            save_cnt,
-            quick_cnt,
-            thumb_config,
-            &mut ctx.globals.syscom.save_slots,
-            idx,);
+            let ok = delete_slot(
+                &ctx.project_dir,
+                false,
+                save_cnt,
+                quick_cnt,
+                thumb_config,
+                &mut ctx.globals.syscom.save_slots,
+                idx,
+            );
             ctx.globals.syscom.last_menu_call = op;
             ctx.push(Value::Int(if ok { 1 } else { 0 }));
             return Ok(true);
@@ -5327,12 +5419,15 @@ pub fn dispatch(ctx: &mut CommandContext, form_id: u32, args: &[Value]) -> Resul
             let save_cnt = configured_save_count(ctx, false);
             let quick_cnt = configured_save_count(ctx, true);
             let thumb_config = save_thumb_config(ctx);
-            let ok = delete_slot(&ctx.save_base_dir, true,
-            save_cnt,
-            quick_cnt,
-            thumb_config,
-            &mut ctx.globals.syscom.quick_save_slots,
-            idx,);
+            let ok = delete_slot(
+                &ctx.project_dir,
+                true,
+                save_cnt,
+                quick_cnt,
+                thumb_config,
+                &mut ctx.globals.syscom.quick_save_slots,
+                idx,
+            );
             ctx.globals.syscom.last_menu_call = op;
             ctx.push(Value::Int(if ok { 1 } else { 0 }));
             return Ok(true);
@@ -6281,7 +6376,7 @@ pub fn dispatch(ctx: &mut CommandContext, form_id: u32, args: &[Value]) -> Resul
                 name.push('.');
                 name.push_str(extension);
             }
-            let path = ctx.save_path(&name)?;
+            let path = join_game_path(&ctx.project_dir, &name);
             if ctx.globals.syscom.capture_buffer.is_none() {
                 let mut img = ctx.capture_frame_rgba()?;
                 if let Some((w, h)) = ctx.globals.syscom.capture_size {
@@ -6310,14 +6405,14 @@ pub fn dispatch(ctx: &mut CommandContext, form_id: u32, args: &[Value]) -> Resul
                 name.push('.');
                 name.push_str(extension);
             }
-            let path = ctx.save_path(&name)?;
+            let path = join_game_path(&ctx.project_dir, &name);
             let ok = load_capture_flags_sidecar(ctx, &path, params);
             ctx.push(Value::Int(if ok { 1 } else { 0 }));
             return Ok(true);
         }
         CAPTURE_AND_SAVE_BUFFER_TO_PNG => {
             let file_name = params.get(2).and_then(|v| v.as_str()).unwrap_or("");
-            let path = ctx.save_path(file_name)?;
+            let path = join_game_path(&ctx.project_dir, file_name);
             let mut img = ctx.capture_frame_rgba()?;
             if let Some((w, h)) = ctx.globals.syscom.capture_size {
                 img = resize_rgba(&img, w, h);

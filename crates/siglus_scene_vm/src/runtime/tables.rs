@@ -474,14 +474,19 @@ impl AssetTables {
     pub fn load_with_language(
         project_dir: &Path,
         language: crate::resource::ResourceLanguage,
-        read_only_inputs: bool,
         unknown: &mut UnknownOpRecorder,
     ) -> anyhow::Result<Self> {
-        if language == crate::resource::ResourceLanguage::Original && !read_only_inputs {
+        if language == crate::resource::ResourceLanguage::Original {
             return Ok(Self::load(project_dir, unknown));
         }
-        let decoded = crate::resource::load_selected_gameexe(project_dir, language, read_only_inputs)?;
-        Ok(Self::from_decoded(project_dir, unknown, decoded.text, decoded.config, decoded.report))
+        let decoded = crate::resource::load_selected_gameexe(project_dir, language)?;
+        Ok(Self::from_decoded(
+            project_dir,
+            unknown,
+            decoded.text,
+            decoded.config,
+            decoded.report,
+        ))
     }
 
     pub fn load(project_dir: &Path, unknown: &mut UnknownOpRecorder) -> Self {
