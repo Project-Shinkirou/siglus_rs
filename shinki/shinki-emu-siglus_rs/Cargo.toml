@@ -19,7 +19,7 @@ dynamic = ["shinki-emu-abi/diagnostic-bridge"]
 
 [dependencies]
 shinki-emu-abi = { git = "https://github.com/Project-Shinkirou/ShinkiEMU", rev = "9cd899babbb54cbc84c3e9fbddfe192c2f9200c8" }
-siglus_scene_vm = { path = "../../crates/siglus_scene_vm", features = ["pausable-clock"] }
+siglus_scene_vm = { path = "../../crates/siglus_scene_vm", default-features = false, features = ["native-audio", "pausable-clock"] }
 pollster = "0.3"
 
 [build-dependencies]

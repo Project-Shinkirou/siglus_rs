@@ -12,8 +12,10 @@ crate-type = ["rlib", "cdylib", "staticlib"]
 # (`platform_time::advance_virtual_clock`), for deterministic replays of the
 # VM (examples/vm_replay.rs). Never enable it in a player.
 virtual-clock = []
-default = ["native-audio"]
+default = ["native-audio", "android-game-activity"]
 native-audio = ["kira/cpal"]
+# Standalone Android host; embedded hosts choose their own activity backend.
+android-game-activity = ["winit/android-game-activity"]
 # Optional native host suspension; excludes paused wall time without replay ticks.
 pausable-clock = ["native-audio"]
 
@@ -73,7 +75,7 @@ vitasdk-sys = { version = "=0.3.3", default-features = false, features = ["SceGx
 [target.'cfg(target_os = "android")'.dependencies]
 ndk-context = "0.1.1"
 android_logger = "0.14"
-winit = { workspace = true, features = ["android-game-activity"] }
+winit = { workspace = true }
 
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
 wgpu = { workspace = true, features = ["webgl"] }

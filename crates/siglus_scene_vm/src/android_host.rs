@@ -485,5 +485,6 @@ pub unsafe extern "C" fn siglus_android_destroy(handle: *mut c_void) {
     drop(unsafe { Box::from_raw(handle as *mut SiglusHost) });
 }
 
+#[cfg(feature = "android-game-activity")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn android_main(_app: *mut c_void) {}
