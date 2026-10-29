@@ -393,6 +393,9 @@ impl SiglusHost {
     pub fn step(&mut self, dt_ms: u32) -> Result<bool> {
         let _ = dt_ms;
         self.last_step = Some(Instant::now());
+        if self.pending_exit {
+            return Ok(true);
+        }
         if self.native_messagebox_pending() {
             return Ok(false);
         }
@@ -1542,7 +1545,8 @@ impl SiglusHost {
                     self.flow.pop();
                     crate::runtime::forms::syscom::write_global_save(&self.vm.ctx);
                     self.vm.ctx.globals.system.active_flag = false;
-                    continue;
+                    self.pending_exit = true;
+                    break;
                 }
                 ProcType::GameTimerStart => {
                     self.flow.pop();
