@@ -241,7 +241,10 @@ impl DesktopConfigWindow {
         };
 
         let before = self.dialog.state.clone();
-        let close = self.egui_ctx.run_ui(raw_input, |ui| self.dialog.show(ui));
+        let mut close = false;
+        let output = self.egui_ctx.run_ui(raw_input, |ui| {
+            close = self.dialog.show(ui);
+        });
         let action = if close {
             Some(DesktopConfigAction::Close)
         } else if self.dialog.state != before {
@@ -254,13 +257,15 @@ impl DesktopConfigWindow {
             pixels_per_point: scale,
         };
         let paint_jobs = self.egui_ctx.tessellate(output.shapes, scale);
-        for (id, delta) in &output.textures_delta.set {
-            self.egui_renderer.update_texture(
-                &self.renderer.device,
-                &self.renderer.queue,
-                *id,
-                delta,
-            );
+        for (id, deltas) in &output.textures_delta.set {
+            for delta in deltas {
+                self.egui_renderer.update_texture(
+                    &self.renderer.device,
+                    &self.renderer.queue,
+                    *id,
+                    delta,
+                );
+            }
         }
         let surface = self
             .renderer
@@ -323,7 +328,7 @@ impl DesktopConfigWindow {
         }
         self.renderer.queue.submit(Some(encoder.finish()));
         self.renderer.queue.present(frame);
-        for id in output.textures_delta.free {
+        for id in &output.textures_delta.free {
             self.egui_renderer.free_texture(&id);
         }
         Ok(action)

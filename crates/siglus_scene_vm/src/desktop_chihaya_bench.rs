@@ -403,7 +403,7 @@ impl DesktopChihayaBenchWindow {
                     body_painter.text(
                         body_rect.left_top() + egui::vec2(8.0, 8.0),
                         egui::Align2::LEFT_TOP,
-                        body,
+                        body.as_str(),
                         egui::FontId::monospace(15.0),
                         egui::Color32::from_rgb(20, 22, 25),
                     );
@@ -487,13 +487,15 @@ impl DesktopChihayaBenchWindow {
             pixels_per_point: scale,
         };
         let paint_jobs = self.egui_ctx.tessellate(output.shapes, scale);
-        for (id, delta) in &output.textures_delta.set {
-            self.egui_renderer.update_texture(
-                &self.renderer.device,
-                &self.renderer.queue,
-                *id,
-                delta,
-            );
+        for (id, deltas) in &output.textures_delta.set {
+            for delta in deltas {
+                self.egui_renderer.update_texture(
+                    &self.renderer.device,
+                    &self.renderer.queue,
+                    *id,
+                    delta,
+                );
+            }
         }
 
         let surface = self
@@ -547,6 +549,7 @@ impl DesktopChihayaBenchWindow {
                         }),
                         store: wgpu::StoreOp::Store,
                     },
+                    depth_slice: None,
                 })],
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
@@ -554,11 +557,11 @@ impl DesktopChihayaBenchWindow {
                 multiview_mask: None,
             });
             self.egui_renderer
-                .render(&mut pass, &paint_jobs, &screen_desc);
+                .render(&mut pass.forget_lifetime(), &paint_jobs, &screen_desc);
         }
         self.renderer.queue.submit(Some(encoder.finish()));
         self.renderer.queue.present(frame);
-        for id in output.textures_delta.free {
+        for id in &output.textures_delta.free {
             self.egui_renderer.free_texture(&id);
         }
         Ok(())

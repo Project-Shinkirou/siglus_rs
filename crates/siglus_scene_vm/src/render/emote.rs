@@ -295,6 +295,7 @@ impl EmoteCompositor {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
+            let mut reference = draw.stencil_initial_reference;
             for group in draw.stencil_groups.iter().filter(|group| group.phase == 1) {
                 pass.set_pipeline(&self.stencil_inner_pipeline);
                 pass.set_stencil_reference(reference);

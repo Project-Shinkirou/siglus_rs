@@ -378,7 +378,7 @@ impl DesktopMessageBoxWindow {
                     painter.text(
                         egui::pos2(text_x, full.top() + 42.0),
                         egui::Align2::LEFT_TOP,
-                        message,
+                        message.as_str(),
                         egui::FontId::proportional(18.0),
                         egui::Color32::from_rgb(20, 22, 25),
                     );
@@ -399,7 +399,7 @@ impl DesktopMessageBoxWindow {
                         } else {
                             egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(166, 174, 186))
                         };
-                        painter.rect_filled(r, egui::Rounding::same(4.0), fill);
+                        painter.rect_filled(r, egui::CornerRadius::same(4), fill);
                         painter.line_segment([r.left_top(), r.right_top()], stroke);
                         painter.line_segment([r.right_top(), r.right_bottom()], stroke);
                         painter.line_segment([r.right_bottom(), r.left_bottom()], stroke);
@@ -429,13 +429,15 @@ impl DesktopMessageBoxWindow {
             pixels_per_point: scale,
         };
         let paint_jobs = self.egui_ctx.tessellate(output.shapes, scale);
-        for (id, delta) in &output.textures_delta.set {
-            self.egui_renderer.update_texture(
-                &self.renderer.device,
-                &self.renderer.queue,
-                *id,
-                delta,
-            );
+        for (id, deltas) in &output.textures_delta.set {
+            for delta in deltas {
+                self.egui_renderer.update_texture(
+                    &self.renderer.device,
+                    &self.renderer.queue,
+                    *id,
+                    delta,
+                );
+            }
         }
 
         let surface = self
@@ -489,6 +491,7 @@ impl DesktopMessageBoxWindow {
                         }),
                         store: wgpu::StoreOp::Store,
                     },
+                    depth_slice: None,
                 })],
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
@@ -500,7 +503,7 @@ impl DesktopMessageBoxWindow {
         }
         self.renderer.queue.submit(Some(encoder.finish()));
         self.renderer.queue.present(frame);
-        for id in output.textures_delta.free {
+        for id in &output.textures_delta.free {
             self.egui_renderer.free_texture(&id);
         }
         Ok(())

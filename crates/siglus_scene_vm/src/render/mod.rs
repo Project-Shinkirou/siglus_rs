@@ -522,7 +522,7 @@ impl Renderer {
             self.instance
                 .create_surface_unsafe(wgpu::SurfaceTargetUnsafe::RawHandle {
                     raw_display_handle: Some(raw_display_handle),
-                    raw_window_handle: Some(raw_window_handle),
+                    raw_window_handle,
                 })
         }
         .context("create_surface_unsafe (replace)")?;
@@ -3812,6 +3812,7 @@ fn create_wipe_pipeline(
         depth_stencil: None,
         multisample: wgpu::MultisampleState::default(),
         multiview_mask: None,
+        cache: None,
     });
     (layout, pipeline)
 }
@@ -3878,13 +3879,14 @@ fn create_page_wipe_pipeline(
         },
         depth_stencil: Some(wgpu::DepthStencilState {
             format: wgpu::TextureFormat::Depth32Float,
-            depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::LessEqual,
+            depth_write_enabled: Some(true),
+            depth_compare: Some(wgpu::CompareFunction::LessEqual),
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),
         multisample: wgpu::MultisampleState::default(),
         multiview_mask: None,
+        cache: None,
     });
     (layout, pipeline)
 }

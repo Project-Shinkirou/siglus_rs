@@ -361,7 +361,7 @@ impl DesktopTwitterWindow {
                 ui.heading("Twitter");
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
-                    ui.label(account_label);
+                    ui.label(account_label.as_str());
                     if ui.button("認証").clicked() {
                         action = Some(DesktopTwitterAction::Authorize);
                     }
@@ -414,7 +414,7 @@ impl DesktopTwitterWindow {
                     .collapsible(false)
                     .resizable(true)
                     .default_width(500.0)
-                    .show(ctx, |ui| {
+                    .show(ui.ctx(), |ui| {
                         ui.label("ブラウザで認証後、callback URL または oauth_verifier を貼り付けてください。");
                         ui.add(
                             egui::TextEdit::multiline(&mut self.callback_text)
@@ -449,7 +449,7 @@ impl DesktopTwitterWindow {
                         .collapsible(false)
                         .resizable(false)
                         .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
-                        .show(ctx, |ui| {
+                        .show(ui.ctx(), |ui| {
                             ui.label(self.notice_text.clone());
                             ui.horizontal(|ui| {
                                 if ui.button("OK").clicked() {
@@ -467,7 +467,7 @@ impl DesktopTwitterWindow {
                         .collapsible(false)
                         .resizable(false)
                         .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
-                        .show(ctx, |ui| {
+                        .show(ui.ctx(), |ui| {
                             ui.label(self.notice_text.clone());
                             if ui.button("OK").clicked() {
                                 self.notice = DialogNotice::None;
@@ -479,7 +479,7 @@ impl DesktopTwitterWindow {
                         .collapsible(false)
                         .resizable(false)
                         .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
-                        .show(ctx, |ui| {
+                        .show(ui.ctx(), |ui| {
                             ui.label(self.notice_text.clone());
                             if ui.button("OK").clicked() {
                                 action = Some(DesktopTwitterAction::Close);
@@ -490,10 +490,12 @@ impl DesktopTwitterWindow {
             }
         });
 
-        if !output.platform_output.copied_text.is_empty()
-            && let Err(err) = write_system_clipboard(&output.platform_output.copied_text)
-        {
-            log::debug!("desktop Twitter clipboard write failed: {err:#}");
+        for command in &output.platform_output.commands {
+            if let egui::OutputCommand::CopyText(text) = command
+                && let Err(err) = write_system_clipboard(text)
+            {
+                log::debug!("desktop Twitter clipboard write failed: {err:#}");
+            }
         }
 
         let screen_desc = ScreenDescriptor {
@@ -501,13 +503,15 @@ impl DesktopTwitterWindow {
             pixels_per_point: scale,
         };
         let paint_jobs = self.egui_ctx.tessellate(output.shapes, scale);
-        for (id, delta) in &output.textures_delta.set {
-            self.egui_renderer.update_texture(
-                &self.renderer.device,
-                &self.renderer.queue,
-                *id,
-                delta,
-            );
+        for (id, deltas) in &output.textures_delta.set {
+            for delta in deltas {
+                self.egui_renderer.update_texture(
+                    &self.renderer.device,
+                    &self.renderer.queue,
+                    *id,
+                    delta,
+                );
+            }
         }
         let surface = self
             .renderer
@@ -558,6 +562,7 @@ impl DesktopTwitterWindow {
                         }),
                         store: wgpu::StoreOp::Store,
                     },
+                    depth_slice: None,
                 })],
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
@@ -569,7 +574,7 @@ impl DesktopTwitterWindow {
         }
         self.renderer.queue.submit(Some(encoder.finish()));
         self.renderer.queue.present(frame);
-        for id in output.textures_delta.free {
+        for id in &output.textures_delta.free {
             self.egui_renderer.free_texture(&id);
         }
         Ok(action)
