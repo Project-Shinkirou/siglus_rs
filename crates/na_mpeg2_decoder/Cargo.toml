@@ -51,5 +51,10 @@ name = "mpeg2_player_wgpu"
 path = "src/bin/mpeg2_player_wgpu.rs"
 required-features = ["desktop-bins"]
 
+[[example]]
+name = "png_dump"
+path = "examples/png_dump.rs"
+required-features = ["desktop-bins"]
+
 [lints]
 workspace = true

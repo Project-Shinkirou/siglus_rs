@@ -119,10 +119,9 @@ impl PlayerState {
         );
         #[allow(deprecated)]
         window.set_ime_allowed(true);
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::all(),
-            ..Default::default()
-        });
+        let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
+        descriptor.backends = wgpu::Backends::all();
+        let instance = wgpu::Instance::new(descriptor);
         let surface = instance
             .create_surface(window)
             .context("create GPU surface")?;
@@ -131,18 +130,17 @@ impl PlayerState {
                 power_preference: wgpu::PowerPreference::HighPerformance,
                 compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
+                ..Default::default()
             })
             .await
             .context("request GPU adapter")?;
         let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: Some("reallive-player-device"),
-                    required_features: wgpu::Features::empty(),
-                    required_limits: wgpu::Limits::default(),
-                },
-                None,
-            )
+            .request_device(&wgpu::DeviceDescriptor {
+                label: Some("reallive-player-device"),
+                required_features: wgpu::Features::empty(),
+                required_limits: wgpu::Limits::default(),
+                ..Default::default()
+            })
             .await
             .context("request GPU device")?;
         let caps = surface.get_capabilities(&adapter);
@@ -171,6 +169,7 @@ impl PlayerState {
                 .find(|mode| *mode == wgpu::CompositeAlphaMode::Opaque)
                 .unwrap_or(caps.alpha_modes[0]),
             view_formats: vec![],
+            color_space: wgpu::SurfaceColorSpace::Auto,
             desired_maximum_frame_latency: 2,
         };
         surface.configure(&device, &configuration);
@@ -194,7 +193,7 @@ impl PlayerState {
             label: Some("reallive-framebuffer-sampler"),
             mag_filter: wgpu::FilterMode::Nearest,
             min_filter: wgpu::FilterMode::Nearest,
-            mipmap_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::MipmapFilterMode::Nearest,
             ..Default::default()
         });
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -238,21 +237,21 @@ impl PlayerState {
         });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("reallive-present-layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
+            bind_group_layouts: &[Some(&bind_group_layout)],
+            immediate_size: 0,
         });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("reallive-present-pipeline"),
             layout: Some(&layout),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: "vs_main",
+                entry_point: Some("vs_main"),
                 buffers: &[],
                 compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
-                entry_point: "fs_main",
+                entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
                     format,
                     blend: Some(wgpu::BlendState::REPLACE),
@@ -260,10 +259,11 @@ impl PlayerState {
                 })],
                 compilation_options: Default::default(),
             }),
+            cache: None,
             primitive: wgpu::PrimitiveState::default(),
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
-            multiview: None,
+            multiview_mask: None,
         });
         Ok(Self {
             engine,
@@ -339,14 +339,14 @@ impl PlayerState {
         window.set_cursor_visible(sys.cursor_visible);
         let frame = self.engine.render();
         self.queue.write_texture(
-            wgpu::ImageCopyTexture {
+            wgpu::TexelCopyTextureInfo {
                 texture: &self.frame_texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
             &frame.rgba,
-            wgpu::ImageDataLayout {
+            wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(4 * self.width),
                 rows_per_image: Some(self.height),
@@ -358,13 +358,14 @@ impl PlayerState {
             },
         );
         let output = match self.surface.get_current_texture() {
-            Ok(output) => output,
-            Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
+            wgpu::CurrentSurfaceTexture::Success(output)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(output) => output,
+            wgpu::CurrentSurfaceTexture::Lost | wgpu::CurrentSurfaceTexture::Outdated => {
                 self.surface.configure(&self.device, &self.configuration);
                 return Ok(true);
             }
-            Err(wgpu::SurfaceError::Timeout) => return Ok(true),
-            Err(wgpu::SurfaceError::OutOfMemory) => bail!("GPU surface out of memory"),
+            wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => return Ok(true),
+            wgpu::CurrentSurfaceTexture::Validation => bail!("GPU surface validation error"),
         };
         let view = output
             .texture
@@ -379,6 +380,7 @@ impl PlayerState {
                 label: Some("reallive-present-pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
+                    depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
@@ -388,6 +390,7 @@ impl PlayerState {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
             let (vx, vy, vw, vh) = self.viewport();
             pass.set_pipeline(&self.pipeline);
@@ -397,7 +400,7 @@ impl PlayerState {
             pass.draw(0..6, 0..1);
         }
         self.queue.submit(Some(encoder.finish()));
-        output.present();
+        self.queue.present(output);
         Ok(true)
     }
 }

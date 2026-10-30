@@ -109,27 +109,28 @@ async fn run(rx: Receiver<MpegRgbaFrame>) {
         .unwrap();
     let window: &'static winit::window::Window = Box::leak(Box::new(window));
 
-    let instance = wgpu::Instance::default();
-    let surface = unsafe { instance.create_surface(window) }.unwrap();
+    let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
+    descriptor.backends = wgpu::Backends::all();
+    let instance = wgpu::Instance::new(descriptor);
+    let surface = unsafe { instance.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::from_window(window).unwrap()) }.unwrap();
 
     let adapter = instance
         .request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
             compatible_surface: Some(&surface),
             force_fallback_adapter: false,
+            ..Default::default()
         })
         .await
         .unwrap();
 
     let (device, queue) = adapter
-        .request_device(
-            &wgpu::DeviceDescriptor {
-                label: None,
-                required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::downlevel_webgl2_defaults(),
-            },
-            None,
-        )
+        .request_device(&wgpu::DeviceDescriptor {
+            label: None,
+            required_features: wgpu::Features::empty(),
+            required_limits: wgpu::Limits::downlevel_webgl2_defaults(),
+            ..Default::default()
+        })
         .await
         .unwrap();
 
@@ -145,6 +146,7 @@ async fn run(rx: Receiver<MpegRgbaFrame>) {
         present_mode: caps.present_modes[0],
         alpha_mode: caps.alpha_modes[0],
         view_formats: vec![],
+        color_space: wgpu::SurfaceColorSpace::Auto,
         desired_maximum_frame_latency: 2,
     };
     surface.configure(&device, &config);
@@ -218,8 +220,8 @@ async fn run(rx: Receiver<MpegRgbaFrame>) {
 
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("pl"),
-        bind_group_layouts: &[&bind_group_layout],
-        push_constant_ranges: &[],
+        bind_group_layouts: &[Some(&bind_group_layout)],
+        immediate_size: 0,
     });
 
     let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -227,22 +229,25 @@ async fn run(rx: Receiver<MpegRgbaFrame>) {
         layout: Some(&pipeline_layout),
         vertex: wgpu::VertexState {
             module: &shader,
-            entry_point: "vs_main",
+            entry_point: Some("vs_main"),
             buffers: &[],
+            compilation_options: Default::default(),
         },
         fragment: Some(wgpu::FragmentState {
             module: &shader,
-            entry_point: "fs_main",
+            entry_point: Some("fs_main"),
             targets: &[Some(wgpu::ColorTargetState {
                 format: config.format,
                 blend: Some(wgpu::BlendState::REPLACE),
                 write_mask: wgpu::ColorWrites::ALL,
             })],
+            compilation_options: Default::default(),
         }),
+        cache: None,
         primitive: wgpu::PrimitiveState::default(),
         depth_stencil: None,
         multisample: wgpu::MultisampleState::default(),
-        multiview: None,
+        multiview_mask: None,
     });
 
     let mut pending: VecDeque<MpegRgbaFrame> = VecDeque::new();
@@ -361,18 +366,18 @@ async fn run(rx: Receiver<MpegRgbaFrame>) {
                                 };
 
                                 queue.write_texture(
-                                    wgpu::ImageCopyTexture {
-                                        texture: &texture,
-                                        mip_level: 0,
-                                        origin: wgpu::Origin3d::ZERO,
-                                        aspect: wgpu::TextureAspect::All,
-                                    },
-                                    upload_bytes,
-                                    wgpu::ImageDataLayout {
-                                        offset: 0,
-                                        bytes_per_row: Some(upload_bpr),
-                                        rows_per_image: Some(tex_h),
-                                    },
+                                        wgpu::TexelCopyTextureInfo {
+                                            texture: &texture,
+                                            mip_level: 0,
+                                            origin: wgpu::Origin3d::ZERO,
+                                            aspect: wgpu::TextureAspect::All,
+                                        },
+                                        upload_bytes,
+                                        wgpu::TexelCopyBufferLayout {
+                                            offset: 0,
+                                            bytes_per_row: Some(upload_bpr),
+                                            rows_per_image: Some(tex_h),
+                                        },
                                     wgpu::Extent3d {
                                         width: tex_w,
                                         height: tex_h,
@@ -384,8 +389,9 @@ async fn run(rx: Receiver<MpegRgbaFrame>) {
 
                         // Render.
                         let frame = match surface.get_current_texture() {
-                            Ok(frame) => frame,
-                            Err(_) => {
+                            wgpu::CurrentSurfaceTexture::Success(frame)
+                            | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
+                            _ => {
                                 surface.configure(&device, &config);
                                 return;
                             }
@@ -404,6 +410,7 @@ async fn run(rx: Receiver<MpegRgbaFrame>) {
                                     label: None,
                                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                                         view: &view,
+                                        depth_slice: None,
                                         resolve_target: None,
                                         ops: wgpu::Operations {
                                             load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
@@ -413,6 +420,7 @@ async fn run(rx: Receiver<MpegRgbaFrame>) {
                                     depth_stencil_attachment: None,
                                     timestamp_writes: None,
                                     occlusion_query_set: None,
+                                    multiview_mask: None,
                                 });
                             rpass.set_pipeline(&render_pipeline);
                             rpass.set_bind_group(0, &bind_group, &[]);
@@ -420,7 +428,7 @@ async fn run(rx: Receiver<MpegRgbaFrame>) {
                         }
 
                         queue.submit(Some(encoder.finish()));
-                        frame.present();
+                        queue.present(frame);
                     }
                     _ => {}
                 },

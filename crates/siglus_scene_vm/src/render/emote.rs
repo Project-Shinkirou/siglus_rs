@@ -899,7 +899,7 @@ mod snapshot_tests {
         let instance = wgpu::Instance::default();
         let adapter = pollster::block_on(instance.request_adapter(&Default::default())).unwrap();
         let (device, queue) =
-            pollster::block_on(adapter.request_device(&Default::default(), None)).unwrap();
+            pollster::block_on(adapter.request_device(&Default::default())).unwrap();
         let mut compositor = EmoteCompositor::new(&device);
         compositor.prepare(&device, &queue, &packet).unwrap();
         let texture = compositor.texture(packet.render_id).unwrap();
@@ -932,8 +932,11 @@ mod snapshot_tests {
         );
         queue.submit(Some(encoder.finish()));
         buffer.slice(..).map_async(wgpu::MapMode::Read, |_| {});
-        device.poll(wgpu::PollType::Wait);
-        let data = buffer.slice(..).get_mapped_range();
+        device.poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: None,
+        }).unwrap();
+        let data = buffer.slice(..).get_mapped_range().unwrap();
         let mut rgba = Vec::with_capacity((width * height * 4) as usize);
         for row in data.chunks(padded as usize).take(height as usize) {
             rgba.extend_from_slice(&row[..(width * 4) as usize]);

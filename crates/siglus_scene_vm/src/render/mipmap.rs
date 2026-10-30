@@ -166,9 +166,12 @@ mod tests {
         buffer
             .slice(..)
             .map_async(wgpu::MapMode::Read, move |result| tx.send(result).unwrap());
-        device.poll(wgpu::PollType::Wait);
+        device.poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: None,
+        }).unwrap();
         rx.recv().unwrap().unwrap();
-        let mapped = buffer.slice(..).get_mapped_range();
+        let mapped = buffer.slice(..).get_mapped_range().unwrap();
         let result = mapped
             .chunks_exact(stride as usize)
             .flat_map(|row| row[..width as usize * 4].iter().copied())
@@ -181,18 +184,20 @@ mod tests {
     #[test]
     fn gpu_mips_match_integer_reference_including_odd_sizes_alpha_and_updates() {
         let instance = wgpu::Instance::default();
-        let Some(adapter) = pollster::block_on(instance.request_adapter(&Default::default()))
-        else {
-            eprintln!("GPU mipmap comparison skipped: no graphics adapter");
-            return;
+        let adapter = match pollster::block_on(instance.request_adapter(&Default::default())) {
+            Ok(adapter) => adapter,
+            Err(_) => {
+                eprintln!("GPU mipmap comparison skipped: no graphics adapter");
+                return;
+            }
         };
         let (device, queue) = pollster::block_on(adapter.request_device(
             &wgpu::DeviceDescriptor {
                 required_features: wgpu::Features::empty(),
                 required_limits: wgpu::Limits::downlevel_defaults(),
                 label: Some("mipmap-test-device"),
+                ..Default::default()
             },
-            None,
         ))
         .unwrap();
         let generator = MipmapGenerator::new(&device);
