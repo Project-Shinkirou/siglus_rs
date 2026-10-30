@@ -40,6 +40,7 @@ struct Opaque {
 /// If `extradata` is non-null and `extradata_len` is nonzero, it must point to
 /// `extradata_len` initialized bytes in one allocation, readable and unchanged
 /// for this call. The length must not exceed `isize::MAX`.
+#[cfg(feature = "c-abi")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn wmv2_decoder_create(
     width: u32,
@@ -70,6 +71,7 @@ pub unsafe extern "C" fn wmv2_decoder_create(
 /// A non-null `handle` must be a live handle returned by `wmv2_decoder_create`.
 /// No other call may use it concurrently. After this call, neither the handle
 /// nor any frame pointers obtained from it may be used.
+#[cfg(feature = "c-abi")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn wmv2_decoder_destroy(handle: *mut c_void) {
     if handle.is_null() {
@@ -96,6 +98,7 @@ pub unsafe extern "C" fn wmv2_decoder_destroy(handle: *mut c_void) {
 /// one allocation, readable and unchanged for this call. The length must not
 /// exceed `isize::MAX`, and the payload must not overlap decoder-owned memory.
 /// Previously returned frame pointers must not be accessed during this call.
+#[cfg(feature = "c-abi")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn wmv2_decoder_decode(
     handle: *mut c_void,
@@ -146,6 +149,7 @@ pub unsafe extern "C" fn wmv2_decoder_decode(
 /// must be aligned and valid for writing one `Wmv2FrameView`, and must not
 /// overlap decoder-owned memory. No other access to `out` may occur during
 /// this call.
+#[cfg(feature = "c-abi")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn wmv2_decoder_get_frame(
     handle: *mut c_void,

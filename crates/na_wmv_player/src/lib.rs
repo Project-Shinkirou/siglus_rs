@@ -33,4 +33,5 @@ pub use color::{
 pub use decoder::YuvFrame;
 pub use error::{DecoderError, Result};
 
+#[cfg(feature = "c-abi")]
 pub mod ffi;
