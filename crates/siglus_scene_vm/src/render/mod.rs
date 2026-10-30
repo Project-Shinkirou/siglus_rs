@@ -490,7 +490,7 @@ impl Renderer {
         let instance = wgpu::Instance::new(descriptor);
         let surface = instance
             .create_surface_unsafe(wgpu::SurfaceTargetUnsafe::RawHandle {
-                raw_display_handle,
+                raw_display_handle: Some(raw_display_handle),
                 raw_window_handle,
             })
             .context("create_surface_unsafe")?;
