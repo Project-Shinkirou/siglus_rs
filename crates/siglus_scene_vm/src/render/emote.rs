@@ -143,8 +143,8 @@ impl EmoteCompositor {
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("siglus-emote-pipeline-layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
+            bind_group_layouts: &[Some(&bind_group_layout)],
+            immediate_size: 0,
         });
         let color_pipelines = (0..6)
             .map(|mode| create_color_pipeline(device, &pipeline_layout, &shader, mode, false))
@@ -193,7 +193,7 @@ impl EmoteCompositor {
         }
         // Drive map_async callbacks without blocking. This is also valid on
         // wasm32, where Maintain::Wait is not available as a synchronous path.
-        device.poll(wgpu::Maintain::Poll);
+        device.poll(wgpu::PollType::Poll);
         if self
             .targets
             .get(&packet.render_id)
@@ -225,6 +225,7 @@ impl EmoteCompositor {
                 label: Some("siglus-emote-object-clear"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &target.output.view,
+                    depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -239,6 +240,7 @@ impl EmoteCompositor {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
         }
 
@@ -251,6 +253,7 @@ impl EmoteCompositor {
                     label: Some("siglus-emote-color"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                         view: &target.output.view,
+                        depth_slice: None,
                         resolve_target: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Load,
@@ -260,6 +263,7 @@ impl EmoteCompositor {
                     depth_stencil_attachment: None,
                     timestamp_writes: None,
                     occlusion_query_set: None,
+                    multiview_mask: None,
                 });
                 pass.set_pipeline(&self.color_pipelines[draw.blend_index]);
                 pass.set_bind_group(0, bind_group, &[]);
@@ -272,6 +276,7 @@ impl EmoteCompositor {
                 label: Some("siglus-emote-stencil-color"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &target.output.view,
+                    depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Load,
@@ -288,8 +293,8 @@ impl EmoteCompositor {
                 }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
-            let mut reference = draw.stencil_initial_reference;
             for group in draw.stencil_groups.iter().filter(|group| group.phase == 1) {
                 pass.set_pipeline(&self.stencil_inner_pipeline);
                 pass.set_stencil_reference(reference);
@@ -326,13 +331,13 @@ impl EmoteCompositor {
         }
 
         encoder.copy_texture_to_texture(
-            wgpu::ImageCopyTexture {
+            wgpu::TexelCopyTextureInfo {
                 texture: &target.output._tex,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            wgpu::ImageCopyTexture {
+            wgpu::TexelCopyTextureInfo {
                 texture: &target.feedback._tex,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
@@ -386,15 +391,15 @@ fn schedule_alpha_readback(
         label: Some("siglus-emote-alpha-readback-encoder"),
     });
     encoder.copy_texture_to_buffer(
-        wgpu::ImageCopyTexture {
+        wgpu::TexelCopyTextureInfo {
             texture: &target.output._tex,
             mip_level: 0,
             origin: wgpu::Origin3d::ZERO,
             aspect: wgpu::TextureAspect::All,
         },
-        wgpu::ImageCopyBuffer {
+        wgpu::TexelCopyBufferInfo {
             buffer: buffer.as_ref(),
-            layout: wgpu::ImageDataLayout {
+            layout: wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(padded_bytes_per_row),
                 rows_per_image: Some(height),
@@ -420,7 +425,14 @@ fn schedule_alpha_readback(
             let width = callback_packet.width as usize;
             let height = callback_packet.height as usize;
             let row_bytes = width.saturating_mul(4);
-            let data = callback_buffer.slice(..).get_mapped_range();
+            let data = match callback_buffer.slice(..).get_mapped_range() {
+                Ok(data) => data,
+                Err(err) => {
+                    log::error!("Emote alpha readback mapping failed: {err}");
+                    callback_buffer.unmap();
+                    return;
+                }
+            };
             let mut alpha = vec![0u8; width.saturating_mul(height)];
             for y in 0..height {
                 let src_offset = y.saturating_mul(padded_bytes_per_row as usize);
@@ -476,7 +488,7 @@ fn create_target(
         address_mode_w: wgpu::AddressMode::ClampToEdge,
         mag_filter: wgpu::FilterMode::Linear,
         min_filter: wgpu::FilterMode::Linear,
-        mipmap_filter: wgpu::FilterMode::Nearest,
+        mipmap_filter: wgpu::MipmapFilterMode::Nearest,
         ..Default::default()
     });
     let feedback_bind_group =
@@ -511,14 +523,14 @@ fn create_target(
             0,
         );
         queue.write_texture(
-            wgpu::ImageCopyTexture {
+            wgpu::TexelCopyTextureInfo {
                 texture: &tex._tex,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
             source.rgba.as_slice(),
-            wgpu::ImageDataLayout {
+            wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(4 * source.width),
                 rows_per_image: Some(source.height),
@@ -579,7 +591,7 @@ fn create_gpu_texture(
         address_mode_w: wgpu::AddressMode::ClampToEdge,
         mag_filter: wgpu::FilterMode::Linear,
         min_filter: wgpu::FilterMode::Linear,
-        mipmap_filter: wgpu::FilterMode::Nearest,
+        mipmap_filter: wgpu::MipmapFilterMode::Nearest,
         ..Default::default()
     });
     GpuTexture {
@@ -679,8 +691,8 @@ fn create_color_pipeline(
 ) -> wgpu::RenderPipeline {
     let depth_stencil = stencil.then_some(wgpu::DepthStencilState {
         format: STENCIL_FORMAT,
-        depth_write_enabled: false,
-        depth_compare: wgpu::CompareFunction::Always,
+        depth_write_enabled: Some(false),
+        depth_compare: Some(wgpu::CompareFunction::Always),
         stencil: wgpu::StencilState {
             front: wgpu::StencilFaceState {
                 compare: wgpu::CompareFunction::Equal,
@@ -704,13 +716,13 @@ fn create_color_pipeline(
         layout: Some(layout),
         vertex: wgpu::VertexState {
             module: shader,
-            entry_point: "vs_main",
-            buffers: &[EmoteVertex::layout()],
+            entry_point: Some("vs_main"),
+            buffers: &[Some(EmoteVertex::layout())],
             compilation_options: Default::default(),
         },
         fragment: Some(wgpu::FragmentState {
             module: shader,
-            entry_point: "fs_main",
+            entry_point: Some("fs_main"),
             targets: &[Some(wgpu::ColorTargetState {
                 format: TARGET_FORMAT,
                 blend: Some(native_blend_state(mode)),
@@ -718,6 +730,7 @@ fn create_color_pipeline(
             })],
             compilation_options: Default::default(),
         }),
+        cache: None,
         primitive: wgpu::PrimitiveState {
             topology: wgpu::PrimitiveTopology::TriangleList,
             strip_index_format: None,
@@ -729,7 +742,7 @@ fn create_color_pipeline(
         },
         depth_stencil,
         multisample: wgpu::MultisampleState::default(),
-        multiview: None,
+        multiview_mask: None,
     })
 }
 
@@ -751,13 +764,13 @@ fn create_mask_pipeline(
         layout: Some(layout),
         vertex: wgpu::VertexState {
             module: shader,
-            entry_point: "vs_main",
-            buffers: &[EmoteVertex::layout()],
+            entry_point: Some("vs_main"),
+            buffers: &[Some(EmoteVertex::layout())],
             compilation_options: Default::default(),
         },
         fragment: Some(wgpu::FragmentState {
             module: shader,
-            entry_point: "fs_main",
+            entry_point: Some("fs_main"),
             targets: &[Some(wgpu::ColorTargetState {
                 format: TARGET_FORMAT,
                 blend: None,
@@ -776,8 +789,8 @@ fn create_mask_pipeline(
         },
         depth_stencil: Some(wgpu::DepthStencilState {
             format: STENCIL_FORMAT,
-            depth_write_enabled: false,
-            depth_compare: wgpu::CompareFunction::Always,
+            depth_write_enabled: Some(false),
+            depth_compare: Some(wgpu::CompareFunction::Always),
             stencil: wgpu::StencilState {
                 front: face,
                 back: face,
@@ -786,8 +799,9 @@ fn create_mask_pipeline(
             },
             bias: wgpu::DepthBiasState::default(),
         }),
+        cache: None,
         multisample: wgpu::MultisampleState::default(),
-        multiview: None,
+        multiview_mask: None,
     })
 }
 
@@ -901,9 +915,9 @@ mod snapshot_tests {
         let mut encoder = device.create_command_encoder(&Default::default());
         encoder.copy_texture_to_buffer(
             texture._tex.as_image_copy(),
-            wgpu::ImageCopyBuffer {
+            wgpu::TexelCopyBufferInfo {
                 buffer: &buffer,
-                layout: wgpu::ImageDataLayout {
+                layout: wgpu::TexelCopyBufferLayout {
                     offset: 0,
                     bytes_per_row: Some(padded),
                     rows_per_image: Some(height),
@@ -917,7 +931,7 @@ mod snapshot_tests {
         );
         queue.submit(Some(encoder.finish()));
         buffer.slice(..).map_async(wgpu::MapMode::Read, |_| {});
-        device.poll(wgpu::Maintain::Wait);
+        device.poll(wgpu::PollType::Wait);
         let data = buffer.slice(..).get_mapped_range();
         let mut rgba = Vec::with_capacity((width * height * 4) as usize);
         for row in data.chunks(padded as usize).take(height as usize) {

@@ -70,15 +70,15 @@ impl OffscreenTarget {
             label: Some("siglus-hosted-readback"),
         });
         encoder.copy_texture_to_buffer(
-            wgpu::ImageCopyTexture {
+            wgpu::TexelCopyTextureInfo {
                 texture: &self.texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            wgpu::ImageCopyBuffer {
+            wgpu::TexelCopyBufferInfo {
                 buffer: &self.readback,
-                layout: wgpu::ImageDataLayout {
+                layout: wgpu::TexelCopyBufferLayout {
                     offset: 0,
                     bytes_per_row: Some(self.padded_row),
                     rows_per_image: Some(self.height),
@@ -117,7 +117,7 @@ impl OffscreenTarget {
         let generation = self
             .captured_generation
             .context("hosted readback not pending")?;
-        device.poll(wgpu::Maintain::Poll);
+        device.poll(wgpu::PollType::Poll);
         match self.completion.load(Ordering::Acquire) & 3 {
             1 => return Ok(None),
             2 => {}
@@ -126,7 +126,7 @@ impl OffscreenTarget {
                 anyhow::bail!("map hosted readback");
             }
         }
-        let data = self.readback.slice(..).get_mapped_range();
+        let data = self.readback.slice(..).get_mapped_range()?;
         let row_bytes = self.width as usize * 4;
         pixels.clear();
         pixels.reserve(row_bytes * self.height as usize);
@@ -150,7 +150,7 @@ impl Drop for OffscreenTarget {
 
 impl Renderer {
     pub async fn new_offscreen(width: u32, height: u32) -> Result<Self> {
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
+        let instance = wgpu::Instance::default();
         Self::new_from_instance_surface(instance, None, width, height, 1.0).await
     }
 
