@@ -26,12 +26,13 @@ impl Drop for Project {
 }
 
 fn encrypted_pair(key: &[u8; 16], width: usize) -> (Vec<u8>, Vec<u8>) {
-    use siglus_scene_vm::formats::keys::SCENE_KEY;
-    let mut game = fixture::gameexe(width, "menu");
+    use siglus_scene_vm::formats::keys::{GAMEEXE_KEY, SCENE_KEY};
+    let text = format!("#SCREEN_SIZE={width},720\r\n#START_SCENE=\"start\",0\r\n#MENU_SCENE=\"menu\",0\r\n");
+    let utf16: Vec<u8> = text.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    let mut game = vec![0; 8];
     fixture::put(&mut game, 1, 1);
-    for (i, byte) in game[8..].iter_mut().enumerate() {
-        *byte ^= key[i % 16];
-    }
+    game.extend(siglus_compiler_common::lzss_pack(&utf16).iter().enumerate()
+        .map(|(i, byte)| byte ^ GAMEEXE_KEY[i % 256] ^ key[i % 16]));
     let scenes: Vec<_> = (0..8)
         .map(|i| {
             let mut code = fixture::Code::default();
@@ -54,7 +55,7 @@ fn encrypted_pair(key: &[u8; 16], width: usize) -> (Vec<u8>, Vec<u8>) {
             for word in [7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31] {
                 fixture::put(&mut raw, word, end);
             }
-            let mut packed = fixture::literals(&raw);
+            let mut packed = siglus_compiler_common::lzss_pack(&raw);
             for (j, byte) in packed.iter_mut().enumerate() {
                 *byte ^= SCENE_KEY[j % 256] ^ key[j % 16];
             }
@@ -80,12 +81,15 @@ fn screen_size_recovers_missing_and_stale_keys_before_decode() {
     ] {
         let project = Project::new(name);
         let (game, scene) = encrypted_pair(&key, width);
+        assert_eq!(siglus_key_recovery::check_key(&game, &scene, &key), Ok(siglus_key_recovery::KeyStatus::Accepted));
         fs::write(project.0.join("Gameexe.dat"), &game).unwrap();
         fs::write(project.0.join("Scene.pck"), &scene).unwrap();
         if stale {
             fs::write(project.0.join("key.toml"), "key = \"00000000000000000000000000000000\"\n").unwrap();
         }
-        assert_eq!(screen_size(&project.0, resource::ResourceLanguage::Original).unwrap(), (width as u32, 720));
+        let size = screen_size(&project.0, resource::ResourceLanguage::Original)
+            .unwrap_or_else(|error| panic!("{error:?}; fixture recovery: {:?}", siglus_key_recovery::recover_key_from_resources(&game, &scene)));
+        assert_eq!(size, (width as u32, 720));
         let persisted = fs::read_to_string(project.0.join("key.toml")).unwrap();
         assert_eq!(siglus_scene_vm::formats::key_toml::parse_key16_toml(&persisted).unwrap(), Some(key));
         assert_eq!(fs::read(project.0.join("Gameexe.dat")).unwrap(), game);
