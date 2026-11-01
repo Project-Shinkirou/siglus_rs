@@ -16,6 +16,10 @@
 - `AudioHub` closes device/mixer before reclaiming decoders. The six MovieManager workers keep their decoders; receivers disconnect before join so bounded sends cannot block shutdown. Replaced voice decoders keep their owner until completion and are joined at close, never delivering stale results to a new voice.
 - The WMV crate is version 0.2.1 with library name `siglus_wmv_decoder` (and its three CLI references) to avoid artifact name collisions with other cores.
 - An exhausted native proc stack becomes idle instead of a permanent `paused` latch, so a `ReturnToMenu` queued by redraw still runs. Real suspension uses `set_suspended`.
+- Embedded startup resolves and hard-validates the native resource EXE key before decoding `SCREEN_SIZE`, using the same resource-only recovery and project-local `key.toml` persistence as the standalone engine. CHS keeps explicit-key-only decoding and does not recover against the original pair. This restores private `7d5598f` by 2018wzh without its later `.shinki` isolation changes.
+- Concrete BACK/FRONT/NEXT object-list `get_size` calls select stages 0/1/2 and use the existing object-list handler (upstream PR #91, cherry-picked with authorship). No other alias-list operations are inferred.
+- Game-local `dat/` fonts participate in named resolution and primary fallback after `font/` and `fonts/`, restoring the useful part of private `777dd92`. The desktop native Kira mixer/device/decoder path remains unchanged; private SDK audio routing and local SDK path overrides are not imported.
+
 
 ## ShinkiEMU adapter
 
@@ -66,3 +70,5 @@ Each runtime then selects an immutable namespace containing the language and SHA
 Managed sessions also use explicit read-only project key options, without original EXE-key or Emote-key persistence. A corrupt managed read-flag file is an initialization error instead of being replaced by default state. Save binary formats remain unchanged. Standalone original-mode hosts with no override retain their existing project-local save policy.
 
 Public temporary-directory fixtures exercise native save round-trips, original/CHS/data identity separation, unchanged original saves, failed-read preservation, native PNG capture output, path rejection and FILE.LOAD_TXT save isolation. `sha2 = 0.10.9` is a native dependency recorded in both `Cargo.lock` files.
+
+The screen-size preflight now runs original-mode key recovery before entering a managed session. Key persistence remains the upstream `<game>/key.toml` path; the managed save namespace and subsequent input-read policy are unchanged. Generated encrypted project regressions cover absent/stale/valid keys, non-default screen sizes, source resource preservation, unencrypted projects and CHS non-recovery. Stage dispatch tests use distinct object-list lengths for BACK/FRONT/NEXT; font tests load and rasterize an actual bundled font from `dat/`.

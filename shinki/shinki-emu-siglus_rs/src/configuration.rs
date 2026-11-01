@@ -278,3 +278,7 @@ mod tests {
         assert!(unsafe { parse(&[root]) }.is_err());
     }
 }
+
+#[cfg(test)]
+#[path = "configuration_tests.rs"]
+mod encrypted_tests;

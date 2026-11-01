@@ -2344,7 +2344,11 @@ fn font_path_priority(path: &Path) -> (u8, u8, String) {
 }
 
 fn project_font_dirs(project_dir: &Path) -> Vec<PathBuf> {
-    let mut dirs = vec![project_dir.join("font"), project_dir.join("fonts")];
+    let mut dirs = vec![
+        project_dir.join("font"),
+        project_dir.join("fonts"),
+        project_dir.join("dat"),
+    ];
     if let Ok(exe) = std::env::current_exe()
         && let Some(exe_dir) = exe.parent()
     {
@@ -2646,5 +2650,30 @@ mod font_shadow_mode_tests {
         let mut rgba = [255, 220, 192, 255];
         blend_rgba_pixel(&mut rgba, 1, 0, 0, 80, 160, 240, 128);
         assert_eq!(rgba, [167, 190, 216, 255]);
+    }
+}
+
+#[cfg(test)]
+mod bundled_font_tests {
+    use super::*;
+
+    #[test]
+    fn dat_font_is_loaded_for_named_and_primary_fallback_paths() {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("siglus-dat-font-{}-{stamp}", std::process::id()));
+        std::fs::create_dir_all(root.join("dat")).unwrap();
+        let font_path = root.join("dat/bundled.ttf");
+        std::fs::write(&font_path, DEFAULT_FONT_BYTES).unwrap();
+        for name in ["bundled", "", "not-installed-name"] {
+            let mut fonts = FontCache::new();
+            assert!(fonts.load_for_project_named(&root, name));
+            assert_eq!(fonts.loaded_from(), Some(font_path.as_path()));
+            let image = fonts.render_text_rgba("Aa", 24.0, 100, 40).unwrap();
+            assert!(image.rgba.chunks_exact(4).any(|pixel| pixel[3] != 0));
+        }
+        std::fs::remove_dir_all(root).unwrap();
     }
 }
