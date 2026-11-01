@@ -3,10 +3,7 @@
 use super::*;
 use crate::INITIALIZED;
 
-#[path = "../../../crates/siglus_scene_vm/tests/support/scene_fixture.rs"]
-mod scene_fixture;
-
-use scene_fixture::{Code, gameexe, scene_chunk, scene_pack};
+use crate::scene_fixture::{Code, gameexe, scene_chunk, scene_pack};
 use siglus_scene_vm::runtime::forms::codes::{ELM_GLOBAL_OWARI, ELM_GLOBAL_SYSCOM, syscom_op};
 use std::{fs, sync::atomic::AtomicU32};
 

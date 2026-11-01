@@ -157,3 +157,7 @@ pub unsafe extern "C" fn shinki_emu_query(
 #[cfg(test)]
 #[path = "boundary_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "../../../crates/siglus_scene_vm/tests/support/scene_fixture.rs"]
+mod scene_fixture;

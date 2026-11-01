@@ -2,8 +2,7 @@
 use super::*;
 use std::fs;
 
-#[path = "../../../crates/siglus_scene_vm/tests/support/scene_fixture.rs"]
-mod fixture;
+use crate::scene_fixture as fixture;
 
 struct Project(PathBuf);
 impl Project {
@@ -39,7 +38,22 @@ fn encrypted_pair(key: &[u8; 16], width: usize) -> (Vec<u8>, Vec<u8>) {
             for line in 0..=i {
                 code.line(line);
             }
-            let raw = fixture::scene_chunk(&code.eof(), &[]);
+            // The resource cracker accepts the original compiler order:
+            // header, string index/data, bytecode, then trailing tables.
+            // The lifecycle fixture intentionally uses a different easy-link
+            // layout, so it cannot serve as a compressed recovery seed.
+            let code = code.eof();
+            let mut raw = vec![0; 132];
+            raw.extend_from_slice(&code);
+            fixture::put(&mut raw, 0, 132);
+            fixture::put(&mut raw, 1, 132);
+            fixture::put(&mut raw, 2, code.len());
+            fixture::put(&mut raw, 3, 132);
+            fixture::put(&mut raw, 5, 132);
+            let end = raw.len();
+            for word in [7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31] {
+                fixture::put(&mut raw, word, end);
+            }
             let mut packed = fixture::literals(&raw);
             for (j, byte) in packed.iter_mut().enumerate() {
                 *byte ^= SCENE_KEY[j % 256] ^ key[j % 16];

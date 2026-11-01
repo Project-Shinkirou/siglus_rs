@@ -2667,7 +2667,8 @@ mod bundled_font_tests {
         std::fs::create_dir_all(root.join("dat")).unwrap();
         let font_path = root.join("dat/bundled.ttf");
         std::fs::write(&font_path, DEFAULT_FONT_BYTES).unwrap();
-        for name in ["bundled", "", "not-installed-name"] {
+        let named = font_face_names(DEFAULT_FONT_BYTES)[0][0].clone();
+        for name in [named.as_str(), "", "not-installed-name"] {
             let mut fonts = FontCache::new();
             assert!(fonts.load_for_project_named(&root, name));
             assert_eq!(fonts.loaded_from(), Some(font_path.as_path()));
