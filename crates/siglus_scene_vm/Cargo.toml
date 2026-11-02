@@ -16,6 +16,7 @@ default = ["native-audio", "android-game-activity"]
 native-audio = ["kira/cpal"]
 # Standalone Android host; embedded hosts choose their own activity backend.
 android-game-activity = ["winit/android-game-activity"]
+android-native-activity = ["winit/android-native-activity"]
 # Optional native host suspension; excludes paused wall time without replay ticks.
 pausable-clock = ["native-audio"]
 

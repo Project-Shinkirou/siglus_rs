@@ -15,7 +15,7 @@ doctest = false
 
 [features]
 default = []
-dynamic = ["shinki-emu-abi/diagnostic-bridge"]
+dynamic = ["shinki-emu-abi/diagnostic-bridge", "siglus_scene_vm/android-native-activity"]
 
 [dependencies]
 shinki-emu-abi = { git = "https://github.com/Project-Shinkirou/ShinkiEMU", rev = "9cd899babbb54cbc84c3e9fbddfe192c2f9200c8" }
