@@ -16,7 +16,6 @@ default = ["native-audio", "android-game-activity"]
 native-audio = ["kira/cpal"]
 # Standalone Android host; embedded hosts choose their own activity backend.
 android-game-activity = ["winit/android-game-activity"]
-android-native-activity = ["winit/android-native-activity"]
 # Optional native host suspension; excludes paused wall time without replay ticks.
 pausable-clock = ["native-audio"]
 
@@ -56,11 +55,13 @@ serde_json = "1"
 [target.'cfg(not(any(target_os = "horizon", target_os = "vita")))'.dependencies]
 kira = { version = "=0.9.6", path = "../../vendor/kira/crates/kira", default-features = false, features = ["mp3", "ogg", "flac", "wav"] }
 wgpu.workspace = true
-winit.workspace = true
 pollster.workspace = true
 raw-window-handle = "0.6"
 egui = "0.36"
 egui-wgpu = "0.36"
+
+[target.'cfg(not(any(target_os = "horizon", target_os = "vita", target_os = "android")))'.dependencies]
+winit.workspace = true
 
 [target.'cfg(all(not(any(target_os = "horizon", target_os = "vita")), not(all(target_arch = "wasm32", target_os = "unknown"))))'.dependencies]
 ureq = "2.10"
@@ -76,7 +77,7 @@ vitasdk-sys = { version = "=0.3.3", default-features = false, features = ["SceGx
 [target.'cfg(target_os = "android")'.dependencies]
 ndk-context = "0.1.1"
 android_logger = "0.14"
-winit = { workspace = true }
+winit = { workspace = true, optional = true }
 
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
 wgpu = { workspace = true, features = ["webgl"] }

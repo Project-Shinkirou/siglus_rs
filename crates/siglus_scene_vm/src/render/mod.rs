@@ -11,6 +11,7 @@ use std::num::NonZeroU64;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use wgpu::util::DeviceExt;
+#[cfg(any(not(target_os = "android"), feature = "android-game-activity"))]
 use winit::window::Window;
 
 use crate::assets::load_image_any;
@@ -451,6 +452,7 @@ impl Renderer {
         self.adapter.get_info().name
     }
 
+    #[cfg(any(not(target_os = "android"), feature = "android-game-activity"))]
     pub async fn new<W>(window: W) -> Result<Self>
     where
         W: std::ops::Deref<Target = dyn Window> + Into<wgpu::SurfaceTarget<'static>>,
