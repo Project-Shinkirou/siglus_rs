@@ -2295,8 +2295,14 @@ impl CommandContext {
         self.koe = KoeEngine::new(self.project_dir.clone());
         self.pcm = PcmEngine::new(self.project_dir.clone());
         self.se = SeEngine::new(self.project_dir.clone());
-        self.movie = MovieManager::new(self.project_dir.clone());
-        self.images = ImageManager::new(self.project_dir.clone());
+        self.movie = MovieManager::new_with_resource_language(
+            self.project_dir.clone(),
+            self.resource_language,
+        );
+        self.images = ImageManager::new_with_resource_language(
+            self.project_dir.clone(),
+            self.resource_language,
+        );
         self.mouse_cursor_cache.clear();
         self.solid_white = self.images.solid_rgba((255, 255, 255, 255));
         self.layers.clear_all();

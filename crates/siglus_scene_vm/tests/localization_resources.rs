@@ -242,6 +242,24 @@ fn g01_selection_decodes_all_native_frames_and_keeps_original_defaults() {
 }
 
 #[test]
+fn scene_restart_keeps_chs_image_selection() {
+    use siglus_scene_vm::runtime::CommandContext;
+    let game = Fixture::new();
+    let saves = Fixture::new();
+    game.pair();
+    game.write("g00/title.g00", &g00_frames(&[[0, 255, 0, 255]], false));
+    game.write("g00/title.g01", &g00_frames(&[[0, 0, 255, 255]], false));
+    let mut ctx = CommandContext::new_with_resource_language(
+        game.0.clone(), ResourceLanguage::Chs, Some(&saves.0),
+    ).unwrap();
+    for _ in 0..2 {
+        let id = ctx.images.load_g00("title", 0).unwrap();
+        assert_eq!(ctx.images.get(&id).unwrap().rgba, [255, 0, 0, 255]);
+        ctx.reset_for_scene_restart();
+    }
+}
+
+#[test]
 fn invalid_later_g01_frame_fails_even_when_only_frame_zero_is_requested() {
     let f = Fixture::new();
     f.write("g00/title.g00", &g00_frames(&[[0, 255, 0, 255]], false));

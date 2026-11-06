@@ -58,6 +58,8 @@ The adapter's typed configuration exposes `resource_language = original | chs`, 
 
 CHS image lookup prefers the matching G01 over G00 and decodes it with the existing complete G00 album reader, preserving frame numbering. Other image formats and original-mode extension order remain unchanged. Movie replacement uses `mov_chs` only for the exact filename/extension selected by the normal `mov` resolver in the same append. Unreplaced resources retain their original native paths.
 
+Scene restarts rebuild ImageManager and MovieManager with the session's resource language, retaining CHS image/movie selection after startup and menu transitions. The generated `scene_restart_keeps_chs_image_selection` regression loads distinct G00/G01 pixels before and after a restart.
+
 Font discovery remains the existing `font`/`fonts` mechanism. No speculative font override or binary-offset patches are added. The Rewrite sample still requires an actual font with glyph coverage and established semantics for all five legacy machine-code patch sites; these native resource capabilities alone do not establish complete localization readiness. Anemoi separately lacks a confirmed translation source.
 
 Public generated fixtures in `crates/siglus_scene_vm/tests/localization_resources.rs` cover paired native Scene/Gameexe parsing and strings, strict missing/incompatible pair errors, append boundaries, complete two-frame G01 decoding and rejection of an invalid later frame, and movie path precedence; the adapter tests cover typed ABI configuration. Tests do not execute a game VM.
