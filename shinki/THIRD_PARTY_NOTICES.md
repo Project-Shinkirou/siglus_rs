@@ -32,6 +32,15 @@ distribution of `shinki_emu_siglus_rs.dll`.
 [`Project-Shinkirou/ShinkiEMU@cb8d9dd22d7d0ab129085b324c94d6dc81fa19e3`](https://github.com/Project-Shinkirou/ShinkiEMU/commit/cb8d9dd22d7d0ab129085b324c94d6dc81fa19e3),
 MIT OR Apache-2.0.
 
+## RoukakuEngine
+
+The explicit desktop-headless output reuses `roukaku-platform-common::NullAudioDevice`
+and its bounded PCM lane from
+[`Project-Shinkirou/RoukakuEngine@374a7a20780153766d9d0256e4cf4d7754fd02f9`](https://github.com/Project-Shinkirou/RoukakuEngine/commit/374a7a20780153766d9d0256e4cf4d7754fd02f9),
+MIT OR Apache-2.0. Cargo resolves the original implementation, rather than a
+copied device or a mock mixer. The corresponding-source and Rust-license
+collection include these pinned packages and their license texts.
+
 ## Registry dependencies
 
 Registry crates (wgpu 0.20, winit 0.31.0-beta.3, egui 0.28, ab_glyph,

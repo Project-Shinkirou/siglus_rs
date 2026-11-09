@@ -20,7 +20,8 @@ struct LanguageChoices([abi::Bytes; 2]);
 unsafe impl Sync for LanguageChoices {}
 static LANGUAGE_CHOICES: LanguageChoices = LanguageChoices([text("original"), text("chs")]);
 static LANGUAGE_LABELS: LanguageChoices = LanguageChoices([text("原版"), text("简体中文")]);
-struct Fields([abi::ConfigField; 2]);
+static AUDIO_CHOICES: LanguageChoices = LanguageChoices([text("native"), text("nullaudiodevice")]);
+struct Fields([abi::ConfigField; 3]);
 unsafe impl Sync for Fields {}
 static FIELDS: Fields = Fields([
     abi::ConfigField {
@@ -75,6 +76,30 @@ static FIELDS: Fields = Fields([
         step: 0.0,
         unit: text(""),
     },
+    abi::ConfigField {
+        id: text("headless_audio_device"),
+        label: text("Headless audio device"),
+        group: text("Headless"),
+        default_value: abi::ConfigValue {
+            kind: abi::VALUE_ENUM,
+            reserved: 0,
+            integer: 0,
+            number: 0.0,
+            text: text("native"),
+        },
+        choices: AUDIO_CHOICES.0.as_ptr(),
+        choice_count: AUDIO_CHOICES.0.len(),
+        integer_min: 0,
+        integer_max: 0,
+        number_min: 0.0,
+        number_max: 0.0,
+        max_bytes: 0,
+        flags: 0,
+        description: text("Explicit isolated-headless output; normal sessions use native audio."),
+        choice_labels: std::ptr::null(),
+        step: 0.0,
+        unit: text(""),
+    },
 ]);
 
 #[derive(Debug)]
@@ -110,10 +135,23 @@ pub(super) unsafe fn parse(entries: &[abi::ConfigEntry]) -> Result<EmbeddedConfi
                     config.save_root = Some(PathBuf::from(value));
                 }
             }
+            "headless_audio_device" => {
+                if unsafe { entry.value.text.text(128)? } != "nullaudiodevice" || !headless_audio_requested() {
+                    return Err(Failure::new(abi::INVALID_ARGUMENT, "SHINKI_EMU_HEADLESS_AUDIO_DEVICE",
+                        "NullAudioDevice requires an explicit isolated headless selection"));
+                }
+            }
             _ => return Err(abi::INVALID_ARGUMENT.into()),
         }
     }
     Ok(config)
+}
+
+fn headless_audio_requested() -> bool {
+    #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+    { siglus_scene_vm::audio::headless_backend::requested() }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    { false }
 }
 
 static PROBE_ID: Mutex<String> = Mutex::new(String::new());
@@ -127,7 +165,7 @@ fn descriptor() -> abi::Descriptor {
         formats: FORMATS.0.as_ptr(),
         format_count: 1,
         configuration: FIELDS.0.as_ptr(),
-        configuration_count: FIELDS.0.len(),
+        configuration_count: if headless_audio_requested() { FIELDS.0.len() } else { FIELDS.0.len() - 1 },
         display_name: text("siglus-rs"),
         family_name: text("SiglusEngine"),
         render: abi::RenderExtentSupport::default(),

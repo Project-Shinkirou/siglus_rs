@@ -1,5 +1,7 @@
 //! Audio subsystem.
 
+#[cfg(all(feature = "native-audio", any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+pub mod headless_backend;
 pub mod bgm;
 pub mod engine;
 pub mod jitan;

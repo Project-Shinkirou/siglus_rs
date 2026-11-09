@@ -51,6 +51,8 @@ path = "src/bin/mesh_asset_tool.rs"
 
 [target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
 serde_json = "1"
+roukaku-platform = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "374a7a20780153766d9d0256e4cf4d7754fd02f9" }
+roukaku-platform-common = { git = "https://github.com/Project-Shinkirou/RoukakuEngine", rev = "374a7a20780153766d9d0256e4cf4d7754fd02f9" }
 
 [target.'cfg(not(any(target_os = "horizon", target_os = "vita")))'.dependencies]
 kira = { version = "=0.9.6", path = "../../vendor/kira/crates/kira", default-features = false, features = ["mp3", "ogg", "flac", "wav"] }

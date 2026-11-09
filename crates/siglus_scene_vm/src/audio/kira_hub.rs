@@ -6,7 +6,9 @@ use std::sync::{Arc, atomic::AtomicBool};
 use super::switch_backend::SwitchBackend as PlatformBackend;
 use anyhow::{Context, Result, anyhow};
 use kira::Volume;
-#[cfg(not(any(target_os = "horizon", target_os = "vita")))]
+#[cfg(all(feature = "native-audio", any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+use super::headless_backend::DesktopBackend as PlatformBackend;
+#[cfg(all(not(any(target_os = "horizon", target_os = "vita")), not(all(feature = "native-audio", any(target_os = "windows", target_os = "macos", target_os = "linux")))))]
 use kira::manager::backend::DefaultBackend as PlatformBackend;
 use kira::manager::{AudioManager, AudioManagerSettings};
 use kira::sound::static_sound::{StaticSoundData, StaticSoundHandle};
