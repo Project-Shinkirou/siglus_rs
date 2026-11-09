@@ -96,7 +96,7 @@ static FIELDS: Fields = Fields([
         max_bytes: 0,
         flags: 0,
         description: text("Explicit isolated-headless output; normal sessions use native audio."),
-        choice_labels: std::ptr::null(),
+        choice_labels: AUDIO_CHOICES.0.as_ptr(),
         step: 0.0,
         unit: text(""),
     },
