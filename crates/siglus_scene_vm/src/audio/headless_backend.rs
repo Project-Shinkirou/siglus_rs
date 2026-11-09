@@ -156,6 +156,7 @@ fn render(
 ) -> Result<()> {
     let mut samples = vec![0.0; 1024];
     let mut paused = true;
+    let mut primed = false;
     let mut observed = 0;
     while !stop.load(Ordering::Acquire) {
         if suspended.load(Ordering::Acquire) {
@@ -168,6 +169,8 @@ fn render(
             }
             continue;
         }
+        // A paused, full queue cannot make capacity until its consumer resumes.
+        resume_primed_output(&device, &mut paused, primed)?;
         producer.wait_for_capacity(samples.len(), &stop)?;
         if stop.load(Ordering::Acquire) { break; }
         if suspended.load(Ordering::Acquire) { continue; }
@@ -178,10 +181,16 @@ fn render(
             frame[1] = output.right;
         }
         samples = producer.submit(samples)?;
-        if paused {
-            device.resume()?;
-            paused = false;
-        }
+        primed = true;
+        resume_primed_output(&device, &mut paused, primed)?;
+    }
+    Ok(())
+}
+
+fn resume_primed_output(device: &NullAudioDevice, paused: &mut bool, primed: bool) -> Result<()> {
+    if *paused && primed {
+        device.resume()?;
+        *paused = false;
     }
     Ok(())
 }
@@ -198,6 +207,37 @@ mod tests {
             assert!(Instant::now() < deadline, "audio clock did not advance");
             thread::sleep(Duration::from_millis(5));
         }
+    }
+
+    #[test]
+    fn resume_drains_a_full_paused_queue_before_waiting_for_capacity() {
+        let wake = AudioWakeRegistration::default();
+        let (device, mut producer) = NullAudioDevice::open(AudioOutputRequest {
+            sample_rate: 48_000,
+            channels: 2,
+            chunk_frames: 512,
+            max_buffered_frames: 512,
+            start_paused: true,
+            capture_samples: false,
+        }, wake.clone()).unwrap();
+        producer.submit(vec![0.25; 1024]).unwrap();
+        let stop = Arc::new(AtomicBool::new(false));
+        let worker_stop = stop.clone();
+        let (cancel, timeout) = std::sync::mpsc::channel();
+        let stopper = thread::spawn(move || {
+            if timeout.recv_timeout(Duration::from_secs(2)).is_err() {
+                worker_stop.store(true, Ordering::Release);
+                wake.notify();
+            }
+        });
+        let mut paused = true;
+        resume_primed_output(&device, &mut paused, true).unwrap();
+        producer.wait_for_capacity(1024, &stop).unwrap();
+        let drained = producer.consumed_samples();
+        let _ = cancel.send(());
+        stopper.join().unwrap();
+        assert!(!stop.load(Ordering::Acquire), "resumed full queue stalled");
+        assert!(drained >= 1024);
     }
 
     #[test]
