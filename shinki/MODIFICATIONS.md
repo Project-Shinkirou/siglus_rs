@@ -61,7 +61,7 @@ CHS image lookup prefers the matching G01 over G00 and decodes it with the exist
 
 Scene restarts rebuild ImageManager and MovieManager with the session's resource language, retaining CHS image/movie selection after startup and menu transitions. The generated `scene_restart_keeps_chs_image_selection` regression loads distinct G00/G01 pixels before and after a restart.
 
-Font discovery remains the existing `font`/`fonts` mechanism. No speculative font override or binary-offset patches are added. The Rewrite sample still requires an actual font with glyph coverage and established semantics for all five legacy machine-code patch sites; these native resource capabilities alone do not establish complete localization readiness. Anemoi separately lacks a confirmed translation source.
+Primary font discovery is unchanged. On Windows and Android, when the selected face has no glyph for a Unicode scalar, the renderer tries bundled OFL Noto Sans SC at Regular weight before drawing the primary face's `.notdef`. Dialogue and native save menu text use the same glyph selection in their text sprites. The original font still supplies covered glyphs and line metrics. This does not implement the five legacy executable patches.
 
 Public generated fixtures in `crates/siglus_scene_vm/tests/localization_resources.rs` cover paired native Scene/Gameexe parsing and strings, strict missing/incompatible pair errors, append boundaries, complete two-frame G01 decoding and rejection of an invalid later frame, and movie path precedence; the adapter tests cover typed ABI configuration. Tests do not execute a game VM.
 

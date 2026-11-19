@@ -26,6 +26,16 @@ distribution of `shinki_emu_siglus_rs.dll`.
 - CPAL 0.15.3 git dependency `2018wzh/cpal@65ac8a6ac1a635cc26bfc5af331295b052044908`
   (WASAPI teardown fix), Apache-2.0, license shipped in its source.
 
+## Noto Sans SC
+
+Windows and Android render missing glyphs with the unmodified [ShinkiEMU Noto
+Sans SC asset](https://github.com/Project-Shinkirou/ShinkiEMU/blob/051a05bceff139e60ef6f973781ffa1f093fb2fc/Assets/Fonts/NotoSansSC-Variable.ttf).
+Its SHA-256 is `a3041811a78c361b1de50f953c805e0244951c21c5bd412f7232ef0d899af0da`.
+The font is copyright 2014–2021 Adobe, with Reserved Font Name `Source`,
+and licensed under SIL Open Font License 1.1. The unmodified font and
+`OFL-NotoSansSC.txt` are in `crates/siglus_scene_vm/assets/font-fallback/`;
+the adapter's build manifest includes that license in its packages.
+
 ## ShinkiEMU
 
 `shinki-emu-abi` and the host-side `shinki-emu-build` come from

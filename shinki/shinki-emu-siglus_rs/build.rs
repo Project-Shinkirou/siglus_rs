@@ -16,6 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "shinki/MODIFICATIONS.md",
         "vendor/kira/LICENSE-MIT",
         "vendor/kira/LICENSE-APACHE",
+        "crates/siglus_scene_vm/assets/font-fallback/OFL-NotoSansSC.txt",
     ] {
         manifest.licenses.push(BuildAsset {
             source: root.join(path),

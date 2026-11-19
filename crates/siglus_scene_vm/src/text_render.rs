@@ -4,10 +4,12 @@
 //! game-local fonts first, then engine-local fonts, then the compile-time
 //! embedded default font, then platform fonts. If no font can be loaded, a
 //! small ASCII bitmap fallback is used only to keep debug text visible.
+//! On Windows and Android, a missing glyph may use the bundled OFL CJK face
+//! without changing the selected face or line height.
 
 use crate::assets::RgbaImage;
 use crate::image_manager::{ImageHandle, ImageManager};
-use ab_glyph::{Font, FontArc, FontRef, PxScale, ScaleFont, point};
+use ab_glyph::{Font, FontArc, FontRef, GlyphId, PxScale, ScaleFont, point};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
@@ -16,6 +18,34 @@ static MISSING_CONFIGURED_FONTS_LOGGED: OnceLock<Mutex<HashSet<String>>> = OnceL
 
 // Share one embedded font allocation between game text and desktop dialogs.
 pub(crate) static DEFAULT_FONT_BYTES: &[u8] = include_bytes!("../assets/fonts/default.ttf");
+
+#[cfg(any(target_os = "windows", target_os = "android"))]
+fn embedded_cjk_fallback() -> Option<&'static FontArc> {
+    use ab_glyph::VariableFont;
+
+    static FONT: std::sync::LazyLock<Option<FontArc>> = std::sync::LazyLock::new(|| {
+        let mut font = FontRef::try_from_slice(include_bytes!(
+            "../assets/font-fallback/NotoSansSC-Variable.ttf"
+        ))
+        .ok()?;
+        // The variable asset's default is Thin; use Regular beside the primary face.
+        font.set_variation(b"wght", 400.0);
+        Some(FontArc::from(font))
+    });
+    FONT.as_ref()
+}
+
+fn glyph_face(font: &FontArc, ch: char) -> (&FontArc, GlyphId) {
+    let glyph = font.glyph_id(ch);
+    #[cfg(any(target_os = "windows", target_os = "android"))]
+    if glyph.0 == 0 && let Some(fallback) = embedded_cjk_fallback() {
+        let fallback_glyph = fallback.glyph_id(ch);
+        if fallback_glyph.0 != 0 {
+            return (fallback, fallback_glyph);
+        }
+    }
+    (font, glyph)
+}
 
 fn log_missing_configured_font_once(requested_name: &str, fallback: Option<&Path>) {
     let key = normalize_font_name_for_match(requested_name.trim_start_matches('@'));
@@ -1484,9 +1514,12 @@ fn rotate_raster_glyph_clockwise(src: RasterGlyph) -> RasterGlyph {
 }
 
 fn rasterize_ab_glyph(font: &FontArc, ch: char, font_px: f32) -> RasterGlyph {
-    let scale = PxScale::from(font_px.max(1.0));
+    let (face, id) = glyph_face(font, ch);
+    rasterize_glyph(face, id, PxScale::from(font_px.max(1.0)))
+}
+
+fn rasterize_glyph(font: &FontArc, glyph_id: GlyphId, scale: PxScale) -> RasterGlyph {
     let scaled = font.as_scaled(scale);
-    let glyph_id = scaled.glyph_id(ch);
     let glyph = glyph_id.with_scale_and_position(scale, point(0.0, 0.0));
     let Some(outlined) = scaled.outline_glyph(glyph) else {
         return RasterGlyph {
@@ -2074,7 +2107,8 @@ pub fn text_line_metrics_ab_glyph(
             _ => {}
         }
 
-        let advance = scaled.h_advance(scaled.glyph_id(ch)).max(0.0);
+        let (face, id) = glyph_face(font, ch);
+        let advance = face.as_scaled(scaled.scale()).h_advance(id).max(0.0);
         if x > 0.0 && x + advance > max_w as f32 {
             x = 0.0;
             baseline_y += line_height;
@@ -2125,7 +2159,8 @@ fn render_text_ab_glyph_rgba(
             _ => {}
         }
 
-        let advance = scaled.h_advance(scaled.glyph_id(ch)).max(0.0);
+        let (face, id) = glyph_face(font, ch);
+        let advance = face.as_scaled(scaled.scale()).h_advance(id).max(0.0);
         if x > 0.0 && x + advance > max_w as f32 {
             x = 0.0;
             baseline_y += line_height;
@@ -2134,7 +2169,7 @@ fn render_text_ab_glyph_rgba(
             }
         }
 
-        let glyph = rasterize_ab_glyph(font, ch, font_px);
+        let glyph = rasterize_glyph(face, id, scaled.scale());
         let gx = x + glyph.xmin as f32;
         let gy = baseline_y + glyph.ymin as f32;
         for gy_i in 0..glyph.height {
@@ -2676,5 +2711,59 @@ mod bundled_font_tests {
             assert!(image.rgba.chunks_exact(4).any(|pixel| pixel[3] != 0));
         }
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(any(target_os = "windows", target_os = "android"))]
+    #[test]
+    fn missing_cjk_glyphs_render_in_message_layers_and_saved_text() {
+        let mut fonts = FontCache::new();
+        assert!(fonts.try_load_embedded_default_font());
+        let primary = fonts.font.as_ref().unwrap();
+        let fallback = embedded_cjk_fallback().unwrap();
+        let scale = PxScale::from(24.0);
+        let notdef = rasterize_glyph(primary, GlyphId(0), scale);
+        let roman = primary.glyph_id('A');
+        let (selected, id) = glyph_face(primary, 'A');
+        assert!(roman.0 != 0 && std::ptr::eq(selected, primary));
+        assert_eq!(id, roman);
+
+        let mut images = ImageManager::new(PathBuf::new());
+        let mut sprite_bitmaps = HashSet::new();
+        let mut summary_bitmaps = HashSet::new();
+        for ch in ['\u{4eec}', '\u{4e3a}', '\u{8bf4}'] {
+            assert_eq!(primary.glyph_id(ch), GlyphId(0));
+            let (selected, id) = glyph_face(primary, ch);
+            assert!(id.0 != 0 && std::ptr::eq(selected, fallback));
+            let raster = rasterize_ab_glyph(primary, ch, 24.0);
+            assert_ne!(raster.bitmap, notdef.bitmap);
+            assert!(raster.bitmap.iter().any(|&alpha| alpha > 0));
+
+            // The native message window and script text objects (including the
+            // save menu) both create per-character body sprites this way.
+            let sprite = fonts
+                .render_single_glyph_layer_into(
+                    &mut images,
+                    None,
+                    PositionedTextGlyph {
+                        ch,
+                        x: 0,
+                        y: 0,
+                        size: 24.0,
+                        vertical: false,
+                        style: TextStyle::default(),
+                    },
+                    TextSpriteLayer::Body,
+                )
+                .unwrap();
+            let rgba = &images.get(&sprite.image).unwrap().rgba;
+            assert!(rgba.chunks_exact(4).any(|pixel| pixel[3] != 0));
+            assert!(sprite_bitmaps.insert(rgba.clone()));
+
+            let summary = fonts
+                .render_text_rgba(ch.encode_utf8(&mut [0; 4]), 24.0, 64, 40)
+                .unwrap();
+            assert!(summary.rgba.chunks_exact(4).any(|pixel| pixel[3] != 0));
+            assert!(summary_bitmaps.insert(summary.rgba));
+        }
     }
 }
